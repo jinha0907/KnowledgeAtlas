@@ -1,0 +1,16 @@
+# Node
+node_modules/
+.next/
+out/
+
+# Java
+.gradle/
+build/
+target/
+
+# Env
+.env
+.env.local
+
+# OS
+.DS_Store
