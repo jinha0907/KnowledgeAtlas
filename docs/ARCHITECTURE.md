@@ -8,6 +8,16 @@
 - Decision Extractor (회의록 -> 논의/결정/근거 연결)
 - Web UI (Project Map / Decision Map)
 
+## Implemented API surface (Phase 3)
+- `POST /api/search`
+  - keyword/FTS 기반 retrieval, deterministic ordering (`score DESC, chunk_id ASC`)
+  - response includes evidence citation fields: `score`, `documentId`, `blockId`, `title`, `text`
+- `POST /api/decisions`
+- `GET /api/decisions`
+- `GET /api/decisions/{id}`
+- `PATCH /api/decisions/{id}/status`
+- `POST /api/decisions/{id}/evidence`
+
 ## Data flow (happy path)
 1) Notion 페이지/DB 변경 감지(증분 동기화) -> raw snapshot 저장
 2) 블록 텍스트 정규화 -> chunk 생성

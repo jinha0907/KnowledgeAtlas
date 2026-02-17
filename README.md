@@ -18,3 +18,13 @@
 
 Web: `http://localhost:3000`
 API health: `http://localhost:8080/api/health`
+
+## Phase 3 APIs
+- Search:
+  - `POST /api/search`
+- Decisions:
+  - `POST /api/decisions`
+  - `GET /api/decisions`
+  - `GET /api/decisions/{id}`
+  - `PATCH /api/decisions/{id}/status`
+  - `POST /api/decisions/{id}/evidence`
