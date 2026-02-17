@@ -14,7 +14,9 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -50,7 +52,8 @@ public class NotionSyncService {
     List<NotionBlockDto> blocks = request.blocks() == null ? List.of() : request.blocks();
     Instant now = Instant.now();
     String normalizedRawJson = normalizeRawJson(request.rawJson(), request.sourceId(), blocks);
-    String checksum = sha256(normalizedRawJson);
+    String checksumPayload = buildChecksumPayload(request, normalizedRawJson, blocks, objectMapper);
+    String checksum = sha256(checksumPayload);
 
     Optional<SourceDocumentRow> existing =
         sourceDocumentRepository.findBySource(request.sourceType(), request.sourceId());
@@ -123,6 +126,38 @@ public class NotionSyncService {
       return objectMapper.writeValueAsString(fallback);
     } catch (Exception ex) {
       throw new IllegalArgumentException("rawJson must be valid JSON", ex);
+    }
+  }
+
+  static String buildChecksumPayload(
+      NotionSyncRequest request,
+      String normalizedRawJson,
+      List<NotionBlockDto> blocks,
+      ObjectMapper objectMapper
+  ) {
+    try {
+      List<Map<String, String>> normalizedBlocks = blocks.stream()
+          .filter(block -> block != null && block.blockId() != null && !block.blockId().isBlank())
+          .sorted(Comparator.comparing(NotionBlockDto::blockId))
+          .map(block -> {
+            Map<String, String> blockMap = new LinkedHashMap<>();
+            blockMap.put("blockId", block.blockId().trim());
+            blockMap.put("text", block.text() == null ? "" : block.text().trim());
+            blockMap.put("path", block.path() == null ? "" : block.path().trim());
+            blockMap.put("updatedAt", block.updatedAt() == null ? "" : block.updatedAt().trim());
+            return blockMap;
+          })
+          .toList();
+
+      Map<String, Object> checksumInput = new LinkedHashMap<>();
+      checksumInput.put("sourceType", request.sourceType());
+      checksumInput.put("sourceId", request.sourceId());
+      checksumInput.put("title", request.title() == null ? "" : request.title().trim());
+      checksumInput.put("rawJson", normalizedRawJson);
+      checksumInput.put("blocks", normalizedBlocks);
+      return objectMapper.writeValueAsString(checksumInput);
+    } catch (Exception ex) {
+      throw new IllegalStateException("Failed to build checksum payload", ex);
     }
   }
 
