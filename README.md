@@ -49,3 +49,9 @@ Required env for real Notion sync:
 
 ## Contribution
 - Commit message convention: `docs/COMMIT_CONVENTION.md`
+
+## Validation
+- API unit and integration tests: `cd apps/api && mvn test`
+  - The pgvector integration test uses Testcontainers. It is skipped when Docker is unavailable and runs in GitHub Actions.
+- Web checks: `cd apps/web && npm ci && npm run lint && npm run build`
+- GitHub Actions runs the API suite with Java 21 and the web checks with Node 22 on pushes and pull requests.

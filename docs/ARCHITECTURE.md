@@ -35,3 +35,7 @@
 ## Non-goals (MVP)
 - Confluence/Jira/GitHub 연동은 이후 단계(플러그인 방식)
 - 완전 자동 분류 강제는 하지 않음(반자동 보정 UI 제공)
+
+## Validation and CI (Phase 4.1)
+- Unit tests run without a local database; PostgreSQL/pgvector integration tests use Testcontainers and verify Flyway migrations plus the critical Notion persistence path.
+- GitHub Actions runs API tests on Temurin Java 21 and runs the web lint/build checks on Node 22 for pushes and pull requests.
