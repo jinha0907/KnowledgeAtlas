@@ -1,5 +1,7 @@
 package com.projectkg.api.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api")
+@Tag(name = "health", description = "Service and database health checks")
 public class HealthController {
   private final JdbcTemplate jdbcTemplate;
 
@@ -18,11 +21,13 @@ public class HealthController {
   }
 
   @GetMapping("/health")
+  @Operation(summary = "Service health check")
   public Map<String, String> health() {
     return Map.of("status", "ok");
   }
 
   @GetMapping("/db/health")
+  @Operation(summary = "Database connectivity health check")
   public ResponseEntity<Map<String, String>> dbHealth() {
     try {
       Integer ping = jdbcTemplate.queryForObject("SELECT 1", Integer.class);

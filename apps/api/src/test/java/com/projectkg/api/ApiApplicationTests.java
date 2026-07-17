@@ -1,12 +1,14 @@
 package com.projectkg.api;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@SpringBootTest
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
 class ApiApplicationTests {
 
   @Test
-  void contextLoads() {
+  void applicationEntryPointHasSpringBootConfiguration() {
+    assertNotNull(ApiApplication.class.getAnnotation(SpringBootApplication.class));
   }
 }

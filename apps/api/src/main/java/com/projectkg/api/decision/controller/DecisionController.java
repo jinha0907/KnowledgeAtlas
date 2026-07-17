@@ -6,6 +6,8 @@ import com.projectkg.api.decision.dto.DecisionDto;
 import com.projectkg.api.decision.dto.DecisionEvidenceDto;
 import com.projectkg.api.decision.dto.UpdateDecisionStatusRequest;
 import com.projectkg.api.decision.service.DecisionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/decisions")
+@Tag(name = "decision", description = "Decision lifecycle and evidence APIs")
 public class DecisionController {
   private final DecisionService decisionService;
 
@@ -26,21 +29,25 @@ public class DecisionController {
   }
 
   @PostMapping
+  @Operation(summary = "Create a decision")
   public ResponseEntity<DecisionDto> create(@RequestBody CreateDecisionRequest request) {
     return ResponseEntity.ok(decisionService.create(request));
   }
 
   @GetMapping
+  @Operation(summary = "List decisions")
   public ResponseEntity<List<DecisionDto>> list() {
     return ResponseEntity.ok(decisionService.list());
   }
 
   @GetMapping("/{id}")
+  @Operation(summary = "Get decision by id")
   public ResponseEntity<DecisionDto> getById(@PathVariable long id) {
     return ResponseEntity.ok(decisionService.getById(id));
   }
 
   @PatchMapping("/{id}/status")
+  @Operation(summary = "Update decision status")
   public ResponseEntity<DecisionDto> updateStatus(
       @PathVariable long id,
       @RequestBody UpdateDecisionStatusRequest request
@@ -49,6 +56,7 @@ public class DecisionController {
   }
 
   @PostMapping("/{id}/evidence")
+  @Operation(summary = "Attach evidence to decision")
   public ResponseEntity<DecisionEvidenceDto> addEvidence(
       @PathVariable long id,
       @RequestBody AddDecisionEvidenceRequest request

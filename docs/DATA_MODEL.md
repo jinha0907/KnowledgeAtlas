@@ -18,7 +18,8 @@
 - `decision_evidence`
   - `id` (pk), `decision_id` (fk), `document_id` (fk), `block_id`, `quote`, `rationale`
 - `sync_job_run` (optional operational table)
-  - `id`, `source_type`, `started_at`, `finished_at`, `status(running/success/failed)`, `synced_documents`, `error_message`
+  - `id`, `source_type`, `started_at`, `finished_at`, `status(running/success/failed)`, `synced_documents`, `source_watermark_at`, `error_message`
+  - at most one `running` row per `source_type` (partial unique index)
 
 ## Sync invariants
 - Notion source identity is `(source_type, source_id)` and must be stable across re-sync.
@@ -32,3 +33,9 @@
 ## Decision lifecycle invariant
 - Valid transitions: `proposed -> accepted -> obsolete`.
 - `supersedes_decision_id` is used when a newer accepted decision supersedes an older one.
+
+## Sync runner behavior (Phase 4)
+- `sync_job_run` is now actively used by the Notion manual run endpoint.
+- Incremental cutoff is the latest successful `source_watermark_at` for `source_type='notion'`; the runner starts two minutes before it to cover edits made during a prior run.
+- Each run writes `running -> success|failed` status transitions with timestamps. Failed or truncated runs do not advance the watermark.
+- `raw_json` stores the page and its fetched block snapshot. A changed snapshot reconciles removed source blocks by deleting their local blocks, chunks, and cascaded embeddings.

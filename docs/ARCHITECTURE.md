@@ -18,8 +18,15 @@
 - `PATCH /api/decisions/{id}/status`
 - `POST /api/decisions/{id}/evidence`
 
+## Implemented API surface (Phase 4)
+- `POST /api/notion/sync/run`
+  - real Notion API 호출 후 증분 동기화 실행
+  - 기준 시점: 마지막 성공한 `sync_job_run.source_watermark_at`의 2분 전
+  - 중복 실행은 `409 Conflict`로 거절하고, 결과 집합이 `maxPages`를 넘으면 워터마크를 진행시키지 않고 실패 처리
+  - Notion 호출의 네트워크/429/5xx 실패는 retry/backoff 후 실패 상태 기록
+
 ## Data flow (happy path)
-1) Notion 페이지/DB 변경 감지(증분 동기화) -> raw snapshot 저장
+1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성
 3) chunk embedding 생성 -> pgvector upsert
 4) 검색 API: query embedding + (optional) 키워드 검색 -> 결과 + 근거 반환

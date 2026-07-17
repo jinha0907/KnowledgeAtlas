@@ -13,7 +13,7 @@ public class ChunkRepository {
   }
 
   public void replaceForBlock(long documentId, String blockId, List<ChunkRow> chunks) {
-    jdbcTemplate.update("DELETE FROM chunk WHERE document_id = ? AND block_id = ?", documentId, blockId);
+    deleteByDocumentAndBlock(documentId, blockId);
 
     String sql = """
         INSERT INTO chunk (
@@ -32,6 +32,10 @@ public class ChunkRepository {
           chunk.tokenCount(),
           chunk.checksum());
     }
+  }
+
+  public void deleteByDocumentAndBlock(long documentId, String blockId) {
+    jdbcTemplate.update("DELETE FROM chunk WHERE document_id = ? AND block_id = ?", documentId, blockId);
   }
 
   public record ChunkRow(int chunkIndex, String text, int tokenCount, String checksum) {}

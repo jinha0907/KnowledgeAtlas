@@ -15,16 +15,18 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class NotionSyncService {
+public class NotionSyncService implements NotionDocumentSyncService {
   private final SourceDocumentRepository sourceDocumentRepository;
   private final ContentBlockRepository contentBlockRepository;
   private final ChunkRepository chunkRepository;
@@ -46,6 +48,7 @@ public class NotionSyncService {
   }
 
   @Transactional
+  @Override
   public NotionSyncResponse sync(NotionSyncRequest request) {
     validate(request);
 
@@ -73,6 +76,7 @@ public class NotionSyncService {
 
     int upsertedBlocks = 0;
     int upsertedChunks = 0;
+    Set<String> incomingBlockIds = new HashSet<>();
 
     for (NotionBlockDto block : blocks) {
       if (block == null || block.blockId() == null || block.blockId().isBlank()) {
@@ -80,6 +84,7 @@ public class NotionSyncService {
       }
 
       String blockText = block.text() == null ? "" : block.text();
+      incomingBlockIds.add(block.blockId());
       contentBlockRepository.upsert(
           documentId,
           block.blockId(),
@@ -99,7 +104,19 @@ public class NotionSyncService {
       upsertedChunks += rows.size();
     }
 
+    reconcileDeletedBlocks(documentId, incomingBlockIds);
+
     return new NotionSyncResponse("ok", documentId, upsertedBlocks, upsertedChunks, true);
+  }
+
+  private void reconcileDeletedBlocks(long documentId, Set<String> incomingBlockIds) {
+    for (String existingBlockId : contentBlockRepository.findBlockIdsByDocumentId(documentId)) {
+      if (incomingBlockIds.contains(existingBlockId)) {
+        continue;
+      }
+      chunkRepository.deleteByDocumentAndBlock(documentId, existingBlockId);
+      contentBlockRepository.deleteByDocumentAndBlock(documentId, existingBlockId);
+    }
   }
 
   private void validate(NotionSyncRequest request) {

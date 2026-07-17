@@ -18,6 +18,8 @@
 
 Web: `http://localhost:3000`
 API health: `http://localhost:8080/api/health`
+Swagger UI: `http://localhost:8080/swagger-ui/index.html`
+OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
 ## Phase 3 APIs
 - Search:
@@ -28,3 +30,22 @@ API health: `http://localhost:8080/api/health`
   - `GET /api/decisions/{id}`
   - `PATCH /api/decisions/{id}/status`
   - `POST /api/decisions/{id}/evidence`
+
+## Phase 4 API (Notion real sync)
+- `POST /api/notion/sync/run`
+  - Optional body:
+    - `{ "pageSize": 20, "maxPages": 20 }`
+
+Example:
+```bash
+curl -s -X POST http://localhost:8080/api/notion/sync/run \
+  -H "Content-Type: application/json" \
+  -d '{"pageSize":20,"maxPages":20}'
+```
+
+Required env for real Notion sync:
+- `NOTION_TOKEN`
+- `NOTION_VERSION` (default: `2022-06-28`)
+
+## Contribution
+- Commit message convention: `docs/COMMIT_CONVENTION.md`

@@ -2,6 +2,7 @@ package com.projectkg.api.notion.repository;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -27,5 +28,19 @@ public class ContentBlockRepository {
         """;
 
     jdbcTemplate.update(sql, documentId, blockId, text, path, Timestamp.from(updatedAt));
+  }
+
+  public List<String> findBlockIdsByDocumentId(long documentId) {
+    return jdbcTemplate.queryForList(
+        "SELECT block_id FROM content_block WHERE document_id = ?",
+        String.class,
+        documentId);
+  }
+
+  public void deleteByDocumentAndBlock(long documentId, String blockId) {
+    jdbcTemplate.update(
+        "DELETE FROM content_block WHERE document_id = ? AND block_id = ?",
+        documentId,
+        blockId);
   }
 }
