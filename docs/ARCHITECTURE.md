@@ -38,12 +38,22 @@
   - extractor가 비활성화된 경우 외부 호출 없이 `disabled`를 반환
   - 같은 source checksum은 기존 run의 후보를 반환하고, 결과는 항상 `proposed` 상태로만 생성
 
+## Implemented API surface (Phase 7)
+- `GET /api/documents`
+  - 동기화된 문서의 식별자, source, 제목, 마지막 동기화 시각을 최신 순으로 반환
+- `GET /api/documents/{documentId}`
+  - 선택한 문서와 저장된 Notion block을 경로 순으로 반환
+- Web UI (`apps/web`)
+  - 문서 목록, 결정 상태별 map, 결정의 block-level evidence, 선택 문서의 저장 블록을 같은 화면에서 제공
+  - 동기화, embedding backfill, decision extraction을 기존 API에 연결
+
 ## Data flow (happy path)
 1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성
 3) 변경된 chunk만 embedding 생성 -> pgvector upsert (기존 데이터는 수동 backfill 가능)
 4) 검색 API: query embedding + 키워드 FTS를 deterministic RRF로 결합 -> 결과 + 근거 반환
 5) 회의록 처리: 논의/결정 추출 -> Decision 엔티티 + evidence 링크 저장
+6) Web UI: 문서/결정 read API를 조회 -> evidence가 가리키는 로컬 문서 block을 열어 검토
 
 ## Non-goals (MVP)
 - Confluence/Jira/GitHub 연동은 이후 단계(플러그인 방식)

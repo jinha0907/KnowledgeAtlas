@@ -21,6 +21,8 @@ API health: `http://localhost:8080/api/health`
 Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
+The web atlas shows synced documents, status-filtered decisions, and the stored source blocks behind each evidence quote. The local web server is allowed by default; change `CORS_ALLOWED_ORIGIN` when the web origin changes.
+
 ## Phase 3 APIs
 - Search:
   - `POST /api/search`
@@ -46,6 +48,11 @@ curl -s -X POST http://localhost:8080/api/notion/sync/run \
 Required env for real Notion sync:
 - `NOTION_TOKEN`
 - `NOTION_VERSION` (default: `2022-06-28`)
+
+## Project and Decision Atlas
+- `GET /api/documents` lists the locally synced source documents.
+- `GET /api/documents/{id}` returns a document and its stored blocks for evidence review.
+- `apps/web` provides the local project/decision map and buttons for sync, optional embedding backfill, and optional decision extraction.
 
 ## Embeddings and Hybrid Search
 By default, the API uses keyword retrieval only. To enable OpenAI embeddings and pgvector hybrid retrieval, set the following local `.env` values:

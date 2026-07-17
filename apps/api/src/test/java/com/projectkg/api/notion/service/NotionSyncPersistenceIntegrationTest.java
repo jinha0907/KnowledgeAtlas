@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.projectkg.api.notion.dto.NotionBlockDto;
 import com.projectkg.api.notion.dto.NotionSyncRequest;
 import com.projectkg.api.notion.dto.NotionSyncResponse;
+import com.projectkg.api.document.service.DocumentService;
 import com.projectkg.api.search.repository.JdbcSearchRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -51,6 +52,9 @@ class NotionSyncPersistenceIntegrationTest {
   @Autowired
   private JdbcSearchRepository jdbcSearchRepository;
 
+  @Autowired
+  private DocumentService documentService;
+
   @Test
   void shouldApplyMigrationsAndRemoveBlocksDeletedFromTheSource() {
     NotionSyncResponse firstSync = notionSyncService.sync(new NotionSyncRequest(
@@ -69,6 +73,9 @@ class NotionSyncPersistenceIntegrationTest {
         "SELECT extname FROM pg_extension WHERE extname = 'vector'", String.class));
     assertEquals(2, count("content_block"));
     assertEquals(2, count("chunk"));
+    assertEquals(1, documentService.list().size());
+    assertEquals("Project plan", documentService.getById(firstSync.documentId()).title());
+    assertEquals(2, documentService.getById(firstSync.documentId()).blocks().size());
     long originalChunkId = jdbcTemplate.queryForObject(
         "SELECT id FROM chunk WHERE block_id = 'block-a'", Long.class);
     jdbcTemplate.update(

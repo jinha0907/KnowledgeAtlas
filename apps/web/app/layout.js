@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Project KG",
-  description: "Project Knowledge Graph MVP",
+  title: "Knowledge Atlas",
+  description: "Project knowledge and decision evidence map",
 };
 
 export default function RootLayout({ children }) {

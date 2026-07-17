@@ -3,6 +3,7 @@ package com.projectkg.api.notion.repository;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -31,7 +32,7 @@ public class SourceDocumentRepository {
 
   public Optional<SourceDocumentDetailRow> findById(long documentId) {
     String sql = """
-        SELECT id, title, checksum
+        SELECT id, title, checksum, last_synced_at
         FROM source_document
         WHERE id = ?
         """;
@@ -40,10 +41,27 @@ public class SourceDocumentRepository {
             (rs, rowNum) -> new SourceDocumentDetailRow(
                 rs.getLong("id"),
                 rs.getString("title"),
-                rs.getString("checksum")),
+                rs.getString("checksum"),
+                rs.getTimestamp("last_synced_at").toInstant()),
             documentId)
         .stream()
         .findFirst();
+  }
+
+  public List<SourceDocumentSummaryRow> findAll() {
+    return jdbcTemplate.query(
+        """
+        SELECT id, source_type, source_id, title, last_synced_at, checksum
+        FROM source_document
+        ORDER BY last_synced_at DESC, id DESC
+        """,
+        (rs, rowNum) -> new SourceDocumentSummaryRow(
+            rs.getLong("id"),
+            rs.getString("source_type"),
+            rs.getString("source_id"),
+            rs.getString("title"),
+            rs.getTimestamp("last_synced_at").toInstant(),
+            rs.getString("checksum")));
   }
 
   public long upsert(
@@ -88,5 +106,14 @@ public class SourceDocumentRepository {
 
   public record SourceDocumentRow(long id, String checksum) {}
 
-  public record SourceDocumentDetailRow(long id, String title, String checksum) {}
+  public record SourceDocumentDetailRow(long id, String title, String checksum, Instant lastSyncedAt) {}
+
+  public record SourceDocumentSummaryRow(
+      long id,
+      String sourceType,
+      String sourceId,
+      String title,
+      Instant lastSyncedAt,
+      String checksum
+  ) {}
 }
