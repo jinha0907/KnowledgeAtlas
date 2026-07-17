@@ -64,6 +64,22 @@ curl -s -X POST http://localhost:8080/api/embeddings/backfill
 
 `OPENAI_API_KEY` is never committed. New or changed chunks are backfilled after sync; unchanged chunk text retains its existing embedding.
 
+## Decision Extraction
+Decision extraction is disabled by default. Enable it only when meeting-note content may be sent to the configured OpenAI API:
+
+```bash
+DECISION_EXTRACTION_PROVIDER=openai
+OPENAI_DECISION_MODEL=gpt-4.1-mini
+```
+
+Run extraction for a synced document ID:
+
+```bash
+curl -s -X POST http://localhost:8080/api/documents/1/decisions/extract
+```
+
+Candidates are stored as `proposed` with exact block quotes. Repeating extraction for unchanged source content returns the existing candidates instead of creating duplicates.
+
 ## Contribution
 - Commit message convention: `docs/COMMIT_CONVENTION.md`
 

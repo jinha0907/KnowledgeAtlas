@@ -1,6 +1,7 @@
 package com.projectkg.api.controller;
 
 import com.projectkg.api.notion.repository.JdbcSyncJobRunRepository.SyncAlreadyRunningException;
+import com.projectkg.api.decision.service.DecisionExtractionService.DecisionExtractionAlreadyRunningException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,14 @@ public class ApiExceptionHandler {
 
   @ExceptionHandler(SyncAlreadyRunningException.class)
   public ResponseEntity<Map<String, String>> handleSyncAlreadyRunning(SyncAlreadyRunningException ex) {
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .body(Map.of("error", ex.getMessage()));
+  }
+
+  @ExceptionHandler(DecisionExtractionAlreadyRunningException.class)
+  public ResponseEntity<Map<String, String>> handleDecisionExtractionAlreadyRunning(
+      DecisionExtractionAlreadyRunningException ex
+  ) {
     return ResponseEntity.status(HttpStatus.CONFLICT)
         .body(Map.of("error", ex.getMessage()));
   }

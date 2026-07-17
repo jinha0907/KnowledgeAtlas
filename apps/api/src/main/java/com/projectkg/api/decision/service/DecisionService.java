@@ -58,6 +58,12 @@ public class DecisionService {
     return toDecisionDto(decision);
   }
 
+  public List<DecisionDto> listByExtractionRunId(long extractionRunId) {
+    return decisionRepository.findByExtractionRunId(extractionRunId).stream()
+        .map(this::toDecisionDto)
+        .toList();
+  }
+
   @Transactional
   public DecisionDto updateStatus(long id, UpdateDecisionStatusRequest request) {
     if (request == null || request.status() == null || request.status().isBlank()) {
@@ -114,8 +120,11 @@ public class DecisionService {
         decision.id(),
         decision.title(),
         decision.status(),
+        decision.discussion(),
         decision.outcome(),
+        decision.confidence(),
         decision.supersedesDecisionId(),
+        decision.extractionRunId(),
         decision.createdAt(),
         decision.updatedAt(),
         evidence);

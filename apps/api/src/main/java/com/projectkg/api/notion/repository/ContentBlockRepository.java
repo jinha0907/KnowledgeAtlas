@@ -37,10 +37,27 @@ public class ContentBlockRepository {
         documentId);
   }
 
+  public List<ContentBlockRow> findByDocumentId(long documentId) {
+    return jdbcTemplate.query(
+        """
+        SELECT block_id, text, path
+        FROM content_block
+        WHERE document_id = ?
+        ORDER BY path ASC NULLS LAST, id ASC
+        """,
+        (rs, rowNum) -> new ContentBlockRow(
+            rs.getString("block_id"),
+            rs.getString("text"),
+            rs.getString("path")),
+        documentId);
+  }
+
   public void deleteByDocumentAndBlock(long documentId, String blockId) {
     jdbcTemplate.update(
         "DELETE FROM content_block WHERE document_id = ? AND block_id = ?",
         documentId,
         blockId);
   }
+
+  public record ContentBlockRow(String blockId, String text, String path) {}
 }

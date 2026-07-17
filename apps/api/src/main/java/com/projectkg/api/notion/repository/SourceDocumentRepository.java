@@ -29,6 +29,23 @@ public class SourceDocumentRepository {
         .findFirst();
   }
 
+  public Optional<SourceDocumentDetailRow> findById(long documentId) {
+    String sql = """
+        SELECT id, title, checksum
+        FROM source_document
+        WHERE id = ?
+        """;
+
+    return jdbcTemplate.query(sql,
+            (rs, rowNum) -> new SourceDocumentDetailRow(
+                rs.getLong("id"),
+                rs.getString("title"),
+                rs.getString("checksum")),
+            documentId)
+        .stream()
+        .findFirst();
+  }
+
   public long upsert(
       String sourceType,
       String sourceId,
@@ -70,4 +87,6 @@ public class SourceDocumentRepository {
   }
 
   public record SourceDocumentRow(long id, String checksum) {}
+
+  public record SourceDocumentDetailRow(long id, String title, String checksum) {}
 }

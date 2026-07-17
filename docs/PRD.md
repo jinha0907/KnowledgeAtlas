@@ -18,3 +18,4 @@ Project Knowledge Graph + Decision Tracker
 - Sync from at least one Notion test workspace.
 - Search returns topK with document/block evidence.
 - Decision records are queryable with supporting evidence.
+- Automated decision candidates remain reviewable proposals; they are never accepted automatically.

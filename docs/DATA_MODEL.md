@@ -14,9 +14,12 @@
 - `embedding`
   - `chunk_id` (pk/fk), `embedding(vector(1536))`, `model`, `created_at`
 - `decision`
-  - `id` (pk), `title`, `status(proposed/accepted/obsolete)`, `outcome`, `supersedes_decision_id`, timestamps
+  - `id` (pk), `title`, `status(proposed/accepted/obsolete)`, `discussion`, `outcome`, optional `confidence`, `supersedes_decision_id`, optional `extraction_run_id`, timestamps
 - `decision_evidence`
   - `id` (pk), `decision_id` (fk), `document_id` (fk), `block_id`, `quote`, `rationale`
+- `decision_extraction_run`
+  - `id`, `document_id` (fk), `source_checksum`, `status(running/success/failed)`, `extracted_decisions`, `error_message`, timestamps
+  - unique: `(document_id, source_checksum)` prevents duplicate extraction for unchanged source evidence
 - `sync_job_run` (optional operational table)
   - `id`, `source_type`, `started_at`, `finished_at`, `status(running/success/failed)`, `synced_documents`, `source_watermark_at`, `error_message`
   - at most one `running` row per `source_type` (partial unique index)
@@ -38,6 +41,7 @@
 ## Decision lifecycle invariant
 - Valid transitions: `proposed -> accepted -> obsolete`.
 - `supersedes_decision_id` is used when a newer accepted decision supersedes an older one.
+- Extracted candidates are always created as `proposed`. Their evidence quote must be copied from the referenced stored block.
 
 ## Sync runner behavior (Phase 4)
 - `sync_job_run` is now actively used by the Notion manual run endpoint.

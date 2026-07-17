@@ -2,6 +2,7 @@ package com.projectkg.api.notion.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.projectkg.api.notion.dto.NotionBlockDto;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -61,7 +63,7 @@ class NotionSyncPersistenceIntegrationTest {
             block("block-b", "Deprecated project detail"))));
 
     assertTrue(firstSync.checksumChanged());
-    assertEquals(4, jdbcTemplate.queryForObject(
+    assertEquals(5, jdbcTemplate.queryForObject(
         "SELECT COUNT(*) FROM flyway_schema_history WHERE success", Integer.class));
     assertEquals("vector", jdbcTemplate.queryForObject(
         "SELECT extname FROM pg_extension WHERE extname = 'vector'", String.class));
@@ -75,6 +77,7 @@ class NotionSyncPersistenceIntegrationTest {
         unitVector());
     assertTrue(jdbcSearchRepository.searchByHybrid("first", unitVectorValues(), 5).stream()
         .anyMatch(row -> row.blockId().equals("block-a")));
+    shouldPersistOneIdempotentDecisionExtractionRun(firstSync.documentId());
 
     NotionSyncResponse secondSync = notionSyncService.sync(new NotionSyncRequest(
         "notion",
@@ -119,6 +122,43 @@ class NotionSyncPersistenceIntegrationTest {
 
   private String unitVector() {
     return "[1," + "0,".repeat(1534) + "0]";
+  }
+
+  private void shouldPersistOneIdempotentDecisionExtractionRun(long documentId) {
+    long runId = jdbcTemplate.queryForObject(
+        """
+        INSERT INTO decision_extraction_run (document_id, source_checksum, status)
+        VALUES (?, 'document-checksum', 'success')
+        RETURNING id
+        """,
+        Long.class,
+        documentId);
+    long decisionId = jdbcTemplate.queryForObject(
+        """
+        INSERT INTO decision (title, status, discussion, outcome, confidence, extraction_run_id)
+        VALUES ('Deployment', 'proposed', 'Release timing was discussed', 'Deploy Friday', 0.9, ?)
+        RETURNING id
+        """,
+        Long.class,
+        runId);
+    jdbcTemplate.update(
+        """
+        INSERT INTO decision_evidence (decision_id, document_id, block_id, quote, rationale)
+        VALUES (?, ?, 'block-a', 'First project detail', 'Explicit decision evidence')
+        """,
+        decisionId,
+        documentId);
+
+    assertEquals(1, jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM decision WHERE extraction_run_id = ?", Integer.class, runId));
+    assertEquals(1, jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM decision_evidence WHERE decision_id = ?", Integer.class, decisionId));
+    assertThrows(DataIntegrityViolationException.class, () -> jdbcTemplate.update(
+        """
+        INSERT INTO decision_extraction_run (document_id, source_checksum, status)
+        VALUES (?, 'document-checksum', 'running')
+        """,
+        documentId));
   }
 
   private float[] unitVectorValues() {

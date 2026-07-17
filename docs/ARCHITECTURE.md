@@ -32,6 +32,12 @@
 - `POST /api/embeddings/backfill`
   - embedding이 없는 기존 chunk만 찾아 배치 생성; 제공자가 미설정이면 `disabled` 응답
 
+## Implemented API surface (Phase 6)
+- `POST /api/documents/{documentId}/decisions/extract`
+  - optional OpenAI extractor가 문서 block에서 논의·결과·confidence·정확한 근거 인용을 추출
+  - extractor가 비활성화된 경우 외부 호출 없이 `disabled`를 반환
+  - 같은 source checksum은 기존 run의 후보를 반환하고, 결과는 항상 `proposed` 상태로만 생성
+
 ## Data flow (happy path)
 1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성
