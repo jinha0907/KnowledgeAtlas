@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,19 +33,22 @@ public class NotionSyncService implements NotionDocumentSyncService {
   private final ChunkRepository chunkRepository;
   private final TextChunker textChunker;
   private final ObjectMapper objectMapper;
+  private final ApplicationEventPublisher eventPublisher;
 
   public NotionSyncService(
       SourceDocumentRepository sourceDocumentRepository,
       ContentBlockRepository contentBlockRepository,
       ChunkRepository chunkRepository,
       TextChunker textChunker,
-      ObjectMapper objectMapper
+      ObjectMapper objectMapper,
+      ApplicationEventPublisher eventPublisher
   ) {
     this.sourceDocumentRepository = sourceDocumentRepository;
     this.contentBlockRepository = contentBlockRepository;
     this.chunkRepository = chunkRepository;
     this.textChunker = textChunker;
     this.objectMapper = objectMapper;
+    this.eventPublisher = eventPublisher;
   }
 
   @Transactional
@@ -100,11 +104,13 @@ public class NotionSyncService implements NotionDocumentSyncService {
         rows.add(new ChunkRepository.ChunkRow(i, chunkText, estimateTokenCount(chunkText), sha256(chunkText)));
       }
 
-      chunkRepository.replaceForBlock(documentId, block.blockId(), rows);
-      upsertedChunks += rows.size();
+      if (chunkRepository.replaceForBlock(documentId, block.blockId(), rows)) {
+        upsertedChunks += rows.size();
+      }
     }
 
     reconcileDeletedBlocks(documentId, incomingBlockIds);
+    eventPublisher.publishEvent(new DocumentSyncedEvent(documentId));
 
     return new NotionSyncResponse("ok", documentId, upsertedBlocks, upsertedChunks, true);
   }

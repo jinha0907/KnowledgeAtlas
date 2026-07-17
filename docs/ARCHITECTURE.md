@@ -25,11 +25,18 @@
   - 중복 실행은 `409 Conflict`로 거절하고, 결과 집합이 `maxPages`를 넘으면 워터마크를 진행시키지 않고 실패 처리
   - Notion 호출의 네트워크/429/5xx 실패는 retry/backoff 후 실패 상태 기록
 
+## Implemented API surface (Phase 5)
+- `POST /api/search`
+  - `EMBEDDING_PROVIDER=openai` 설정 시 OpenAI query embedding과 PostgreSQL FTS 후보를 reciprocal-rank fusion으로 결합
+  - 제공자가 없거나 호출에 실패하면 FTS 검색으로 폴백하며, 모든 결과에는 문서·블록 근거를 유지
+- `POST /api/embeddings/backfill`
+  - embedding이 없는 기존 chunk만 찾아 배치 생성; 제공자가 미설정이면 `disabled` 응답
+
 ## Data flow (happy path)
 1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성
-3) chunk embedding 생성 -> pgvector upsert
-4) 검색 API: query embedding + (optional) 키워드 검색 -> 결과 + 근거 반환
+3) 변경된 chunk만 embedding 생성 -> pgvector upsert (기존 데이터는 수동 backfill 가능)
+4) 검색 API: query embedding + 키워드 FTS를 deterministic RRF로 결합 -> 결과 + 근거 반환
 5) 회의록 처리: 논의/결정 추출 -> Decision 엔티티 + evidence 링크 저장
 
 ## Non-goals (MVP)

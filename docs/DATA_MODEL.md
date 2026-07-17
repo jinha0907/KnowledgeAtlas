@@ -30,6 +30,11 @@
 - `idx_chunk_search_vector` (GIN on `chunk.search_vector`) for keyword/FTS retrieval.
 - `idx_embedding_vector_ivfflat` (ivfflat on `embedding.embedding`) for vector retrieval path.
 
+## Embedding invariants (Phase 5)
+- The current schema stores 1536-dimensional vectors, matching the configured `text-embedding-3-small` default.
+- Replacing a chunk deletes its old embedding through the foreign-key cascade. Unchanged chunk checksums retain their chunk ID and existing embedding.
+- Only chunks without an embedding are sent to the configured provider. `POST /api/embeddings/backfill` processes existing missing rows after a provider is enabled.
+
 ## Decision lifecycle invariant
 - Valid transitions: `proposed -> accepted -> obsolete`.
 - `supersedes_decision_id` is used when a newer accepted decision supersedes an older one.

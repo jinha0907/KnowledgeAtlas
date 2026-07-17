@@ -12,7 +12,11 @@ public class ChunkRepository {
     this.jdbcTemplate = jdbcTemplate;
   }
 
-  public void replaceForBlock(long documentId, String blockId, List<ChunkRow> chunks) {
+  public boolean replaceForBlock(long documentId, String blockId, List<ChunkRow> chunks) {
+    if (matchesExistingChunks(documentId, blockId, chunks)) {
+      return false;
+    }
+
     deleteByDocumentAndBlock(documentId, blockId);
 
     String sql = """
@@ -32,6 +36,25 @@ public class ChunkRepository {
           chunk.tokenCount(),
           chunk.checksum());
     }
+    return true;
+  }
+
+  private boolean matchesExistingChunks(long documentId, String blockId, List<ChunkRow> chunks) {
+    List<ChunkRow> existing = jdbcTemplate.query(
+        """
+        SELECT chunk_index, text, token_count, checksum
+        FROM chunk
+        WHERE document_id = ? AND block_id = ?
+        ORDER BY chunk_index ASC
+        """,
+        (rs, rowNum) -> new ChunkRow(
+            rs.getInt("chunk_index"),
+            rs.getString("text"),
+            rs.getInt("token_count"),
+            rs.getString("checksum")),
+        documentId,
+        blockId);
+    return existing.equals(chunks);
   }
 
   public void deleteByDocumentAndBlock(long documentId, String blockId) {

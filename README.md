@@ -47,6 +47,23 @@ Required env for real Notion sync:
 - `NOTION_TOKEN`
 - `NOTION_VERSION` (default: `2022-06-28`)
 
+## Embeddings and Hybrid Search
+By default, the API uses keyword retrieval only. To enable OpenAI embeddings and pgvector hybrid retrieval, set the following local `.env` values:
+
+```bash
+EMBEDDING_PROVIDER=openai
+OPENAI_API_KEY=your_api_key
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+```
+
+Then generate embeddings for documents synced before the provider was enabled:
+
+```bash
+curl -s -X POST http://localhost:8080/api/embeddings/backfill
+```
+
+`OPENAI_API_KEY` is never committed. New or changed chunks are backfilled after sync; unchanged chunk text retains its existing embedding.
+
 ## Contribution
 - Commit message convention: `docs/COMMIT_CONVENTION.md`
 
