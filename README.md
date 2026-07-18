@@ -109,6 +109,9 @@ The same document checksum returns its prior successful analysis. Invalid provid
 ## Atlas Search
 The Atlas includes a citation-first search panel backed by `POST /api/search`. It works with keyword retrieval by default and uses hybrid retrieval automatically when embeddings are configured. Selecting a result opens and highlights the cited local document block.
 
+## Real E2E
+Use `docs/REAL_E2E_CHECKLIST.md` for the user-approved Notion/OpenAI verification flow. It separates the Notion and optional OpenAI approval gates and uses Docker Compose for database inspection.
+
 ## Contribution
 - Commit message convention: `docs/COMMIT_CONVENTION.md`
 
