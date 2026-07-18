@@ -174,12 +174,14 @@ class NotionSyncPersistenceIntegrationTest {
   }
 
   private void shouldPersistOneIdempotentDocumentAnalysis(long documentId) {
-    long runId = documentAnalysisRunRepository.createRunning(documentId, "analysis-checksum");
+    String sourceChecksum = jdbcTemplate.queryForObject(
+        "SELECT checksum FROM source_document WHERE id = ?", String.class, documentId);
+    long runId = documentAnalysisRunRepository.createRunning(documentId, sourceChecksum);
     documentAnalysisRunRepository.markSuccess(
         runId, "Project planning and delivery milestones.", List.of("roadmap", "delivery"));
 
     DocumentAnalysisRunRepository.AnalysisRunRow run = documentAnalysisRunRepository
-        .findByDocumentAndChecksum(documentId, "analysis-checksum")
+        .findByDocumentAndChecksum(documentId, sourceChecksum)
         .orElseThrow();
     assertEquals("success", run.status());
     assertEquals(List.of("roadmap", "delivery"), run.tags());
@@ -188,9 +190,10 @@ class NotionSyncPersistenceIntegrationTest {
     assertThrows(DataIntegrityViolationException.class, () -> jdbcTemplate.update(
         """
         INSERT INTO document_analysis_run (document_id, source_checksum, status)
-        VALUES (?, 'analysis-checksum', 'running')
+        VALUES (?, ?, 'running')
         """,
-        documentId));
+        documentId,
+        sourceChecksum));
   }
 
   private float[] unitVectorValues() {
