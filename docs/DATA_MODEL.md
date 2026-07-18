@@ -20,6 +20,9 @@
 - `decision_extraction_run`
   - `id`, `document_id` (fk), `source_checksum`, `status(running/success/failed)`, `extracted_decisions`, `error_message`, timestamps
   - unique: `(document_id, source_checksum)` prevents duplicate extraction for unchanged source evidence
+- `document_analysis_run`
+  - `id`, `document_id` (fk), `source_checksum`, `status(running/success/failed)`, `summary`, `tags(text[])`, `error_message`, timestamps
+  - unique: `(document_id, source_checksum)` prevents duplicate summary/tag analyses for unchanged source evidence
 - `sync_job_run` (optional operational table)
   - `id`, `source_type`, `started_at`, `finished_at`, `status(running/success/failed)`, `synced_documents`, `source_watermark_at`, `error_message`
   - at most one `running` row per `source_type` (partial unique index)
@@ -42,6 +45,11 @@
 - Valid transitions: `proposed -> accepted -> obsolete`.
 - `supersedes_decision_id` is used when a newer accepted decision supersedes an older one.
 - Extracted candidates are always created as `proposed`. Their evidence quote must be copied from the referenced stored block.
+
+## Document analysis invariant (Phase 8)
+- A successful analysis contains a nonblank summary of at most 800 characters and one to eight normalized tags of at most 80 characters each.
+- Analysis is derived from the stored document snapshot, never written back to Notion, and is reviewable metadata rather than source truth.
+- Failed runs may be retried for the same checksum; successful runs are returned idempotently. Read APIs show only the run matching the document's current checksum.
 
 ## Sync runner behavior (Phase 4)
 - `sync_job_run` is now actively used by the Notion manual run endpoint.

@@ -1,5 +1,7 @@
 package com.projectkg.api.document.service;
 
+import com.projectkg.api.analysis.dto.DocumentAnalysisDto;
+import com.projectkg.api.analysis.service.DocumentAnalysisService;
 import com.projectkg.api.document.dto.DocumentBlockDto;
 import com.projectkg.api.document.dto.DocumentDetailDto;
 import com.projectkg.api.document.dto.DocumentSummaryDto;
@@ -12,13 +14,16 @@ import org.springframework.stereotype.Service;
 public class DocumentService {
   private final SourceDocumentRepository sourceDocumentRepository;
   private final ContentBlockRepository contentBlockRepository;
+  private final DocumentAnalysisService documentAnalysisService;
 
   public DocumentService(
       SourceDocumentRepository sourceDocumentRepository,
-      ContentBlockRepository contentBlockRepository
+      ContentBlockRepository contentBlockRepository,
+      DocumentAnalysisService documentAnalysisService
   ) {
     this.sourceDocumentRepository = sourceDocumentRepository;
     this.contentBlockRepository = contentBlockRepository;
+    this.documentAnalysisService = documentAnalysisService;
   }
 
   public List<DocumentSummaryDto> list() {
@@ -31,11 +36,14 @@ public class DocumentService {
     List<DocumentBlockDto> blocks = contentBlockRepository.findByDocumentId(documentId).stream()
         .map(block -> new DocumentBlockDto(block.blockId(), block.text(), block.path()))
         .toList();
-    return new DocumentDetailDto(document.id(), document.title(), document.lastSyncedAt(), blocks);
+    return new DocumentDetailDto(
+        document.id(), document.title(), document.lastSyncedAt(), blocks,
+        documentAnalysisService.currentForDocument(documentId, document.checksum()).orElse(null));
   }
 
   private DocumentSummaryDto toSummary(SourceDocumentRepository.SourceDocumentSummaryRow row) {
     return new DocumentSummaryDto(
-        row.id(), row.sourceType(), row.sourceId(), row.title(), row.lastSyncedAt());
+        row.id(), row.sourceType(), row.sourceId(), row.title(), row.lastSyncedAt(),
+        documentAnalysisService.currentForDocument(row.id(), row.checksum()).orElse(null));
   }
 }

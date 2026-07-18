@@ -41,7 +41,9 @@ export default function Home() {
       ]);
       setDocuments(documentRows);
       setDecisions(decisionRows);
-      setSelectedDocument((current) => current || documentRows[0] || null);
+      setSelectedDocument((current) => (
+        documentRows.find((document) => document.id === current?.id) || documentRows[0] || null
+      ));
       setSelectedDecision((current) => current || decisionRows[0] || null);
       setNotice(documentRows.length ? "Atlas is in sync." : "No synced documents yet. Run a Notion sync to begin.");
     } catch (error) {
@@ -92,6 +94,14 @@ export default function Home() {
       return;
     }
     runAction("Decision extraction", `/api/documents/${selectedDocument.id}/decisions/extract`);
+  };
+
+  const analyzeSelected = () => {
+    if (!selectedDocument) {
+      setNotice("Select a synced document before running analysis.");
+      return;
+    }
+    runAction("Document analysis", `/api/documents/${selectedDocument.id}/analysis/run`);
   };
 
   const openEvidenceSource = (documentId) => {
@@ -166,7 +176,10 @@ export default function Home() {
               >
                 <span className="source-pill">{document.sourceType}</span>
                 <strong>{document.title || "Untitled"}</strong>
-                <small>Synced {new Date(document.lastSyncedAt).toLocaleDateString()}</small>
+              <small>Synced {new Date(document.lastSyncedAt).toLocaleDateString()}</small>
+              {document.analysis?.status === "success" && (
+                <span className="tag-count">{document.analysis.tags.length} tags</span>
+              )}
               </button>
             ))}
           </div>
@@ -181,10 +194,25 @@ export default function Home() {
                 ))}
                 {documentDetail.blocks.length > 4 && <p className="more-blocks">+ {documentDetail.blocks.length - 4} more blocks</p>}
               </div>
+              <div className="analysis-preview">
+                <p className="eyebrow">Reviewable analysis</p>
+                {documentDetail.analysis?.status === "success" && (
+                  <>
+                    <p>{documentDetail.analysis.summary}</p>
+                    <div className="tag-row">
+                      {documentDetail.analysis.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                    </div>
+                  </>
+                )}
+                {documentDetail.analysis?.status === "running" && <p>Analysis is pending.</p>}
+                {documentDetail.analysis?.status === "failed" && <p>Analysis failed. Run it again after reviewing provider settings.</p>}
+                {!documentDetail.analysis && <p>No saved analysis. Enable the provider to create a summary and tags.</p>}
+              </div>
             </section>
           )}
           <div className="rail-actions">
             <button className="quiet-button" onClick={() => runAction("Embedding backfill", "/api/embeddings/backfill")}>Backfill embeddings</button>
+            <button className="quiet-button" onClick={analyzeSelected}>Analyze summary &amp; tags</button>
             <button className="outline-button" onClick={extractSelected}>Extract decisions</button>
           </div>
         </aside>

@@ -29,6 +29,13 @@ decision-extraction:
     api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_DECISION_MODEL:gpt-4.1-mini}
 
+document-analysis:
+  provider: ${DOCUMENT_ANALYSIS_PROVIDER:none}
+  openai:
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_DOCUMENT_ANALYSIS_MODEL:gpt-4.1-mini}
+
 app:
   cors:
     allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:3000}

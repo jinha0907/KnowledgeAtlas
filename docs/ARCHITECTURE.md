@@ -47,6 +47,13 @@
   - 문서 목록, 결정 상태별 map, 결정의 block-level evidence, 선택 문서의 저장 블록을 같은 화면에서 제공
   - 동기화, embedding backfill, decision extraction을 기존 API에 연결
 
+## Implemented API surface (Phase 8)
+- `POST /api/documents/{documentId}/analysis/run`
+  - optional OpenAI provider가 저장된 block에서 요약과 최대 8개 태그를 생성
+  - provider가 비활성화되면 외부 호출 없이 `disabled`를 반환하며, 같은 source checksum은 기존 성공 결과를 반환
+- Document read API와 Atlas
+  - 현재 source checksum의 analysis run success/running/failed 상태와 성공한 summary/tags를 함께 반환하고 표시
+
 ## Data flow (happy path)
 1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성
@@ -54,6 +61,7 @@
 4) 검색 API: query embedding + 키워드 FTS를 deterministic RRF로 결합 -> 결과 + 근거 반환
 5) 회의록 처리: 논의/결정 추출 -> Decision 엔티티 + evidence 링크 저장
 6) Web UI: 문서/결정 read API를 조회 -> evidence가 가리키는 로컬 문서 block을 열어 검토
+7) Document analysis: 저장 block -> optional provider -> checksum-idempotent summary/tags -> Atlas에서 검토
 
 ## Non-goals (MVP)
 - Confluence/Jira/GitHub 연동은 이후 단계(플러그인 방식)

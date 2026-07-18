@@ -9,6 +9,7 @@ import com.projectkg.api.notion.dto.NotionBlockDto;
 import com.projectkg.api.notion.dto.NotionSyncRequest;
 import com.projectkg.api.notion.dto.NotionSyncResponse;
 import com.projectkg.api.document.service.DocumentService;
+import com.projectkg.api.analysis.repository.DocumentAnalysisRunRepository;
 import com.projectkg.api.search.repository.JdbcSearchRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,9 @@ class NotionSyncPersistenceIntegrationTest {
   @Autowired
   private DocumentService documentService;
 
+  @Autowired
+  private DocumentAnalysisRunRepository documentAnalysisRunRepository;
+
   @Test
   void shouldApplyMigrationsAndRemoveBlocksDeletedFromTheSource() {
     NotionSyncResponse firstSync = notionSyncService.sync(new NotionSyncRequest(
@@ -67,7 +71,7 @@ class NotionSyncPersistenceIntegrationTest {
             block("block-b", "Deprecated project detail"))));
 
     assertTrue(firstSync.checksumChanged());
-    assertEquals(5, jdbcTemplate.queryForObject(
+    assertEquals(6, jdbcTemplate.queryForObject(
         "SELECT COUNT(*) FROM flyway_schema_history WHERE success", Integer.class));
     assertEquals("vector", jdbcTemplate.queryForObject(
         "SELECT extname FROM pg_extension WHERE extname = 'vector'", String.class));
@@ -76,6 +80,7 @@ class NotionSyncPersistenceIntegrationTest {
     assertEquals(1, documentService.list().size());
     assertEquals("Project plan", documentService.getById(firstSync.documentId()).title());
     assertEquals(2, documentService.getById(firstSync.documentId()).blocks().size());
+    shouldPersistOneIdempotentDocumentAnalysis(firstSync.documentId());
     long originalChunkId = jdbcTemplate.queryForObject(
         "SELECT id FROM chunk WHERE block_id = 'block-a'", Long.class);
     jdbcTemplate.update(
@@ -164,6 +169,26 @@ class NotionSyncPersistenceIntegrationTest {
         """
         INSERT INTO decision_extraction_run (document_id, source_checksum, status)
         VALUES (?, 'document-checksum', 'running')
+        """,
+        documentId));
+  }
+
+  private void shouldPersistOneIdempotentDocumentAnalysis(long documentId) {
+    long runId = documentAnalysisRunRepository.createRunning(documentId, "analysis-checksum");
+    documentAnalysisRunRepository.markSuccess(
+        runId, "Project planning and delivery milestones.", List.of("roadmap", "delivery"));
+
+    DocumentAnalysisRunRepository.AnalysisRunRow run = documentAnalysisRunRepository
+        .findByDocumentAndChecksum(documentId, "analysis-checksum")
+        .orElseThrow();
+    assertEquals("success", run.status());
+    assertEquals(List.of("roadmap", "delivery"), run.tags());
+    assertEquals("Project planning and delivery milestones.",
+        documentService.getById(documentId).analysis().summary());
+    assertThrows(DataIntegrityViolationException.class, () -> jdbcTemplate.update(
+        """
+        INSERT INTO document_analysis_run (document_id, source_checksum, status)
+        VALUES (?, 'analysis-checksum', 'running')
         """,
         documentId));
   }

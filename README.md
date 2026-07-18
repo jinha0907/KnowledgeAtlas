@@ -87,6 +87,20 @@ curl -s -X POST http://localhost:8080/api/documents/1/decisions/extract
 
 Candidates are stored as `proposed` with exact block quotes. Repeating extraction for unchanged source content returns the existing candidates instead of creating duplicates.
 
+## Document Analysis
+Document analysis is disabled by default. It creates a concise stored summary and up to eight reviewable tags from a synced document's blocks:
+
+```bash
+DOCUMENT_ANALYSIS_PROVIDER=openai
+OPENAI_DOCUMENT_ANALYSIS_MODEL=gpt-4.1-mini
+```
+
+```bash
+curl -s -X POST http://localhost:8080/api/documents/1/analysis/run
+```
+
+The same document checksum returns its prior successful analysis. Invalid provider output is rejected rather than stored, and the Atlas shows successful, pending, failed, and unavailable states.
+
 ## Contribution
 - Commit message convention: `docs/COMMIT_CONVENTION.md`
 

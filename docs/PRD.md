@@ -5,6 +5,7 @@ Project Knowledge Graph + Decision Tracker
 
 ## Target outcome
 - Sync copied Notion documents to Postgres.
+- Build reviewable document summaries and tags from copied content.
 - Build searchable knowledge with pgvector.
 - Extract meeting decisions and connect them to evidence.
 
@@ -12,6 +13,7 @@ Project Knowledge Graph + Decision Tracker
 - Single workspace, single-user operation.
 - Notion sync pipeline (incremental).
 - Retrieval API with citations.
+- Optional document summary/tag analysis with explicit external-provider opt-in.
 - Basic web visualization (project/decision map).
 
 ## Success criteria
@@ -19,3 +21,4 @@ Project Knowledge Graph + Decision Tracker
 - Search returns topK with document/block evidence.
 - Decision records are queryable with supporting evidence.
 - Automated decision candidates remain reviewable proposals; they are never accepted automatically.
+- Document summaries and tags are available for the current synced snapshot and remain reviewable metadata.
