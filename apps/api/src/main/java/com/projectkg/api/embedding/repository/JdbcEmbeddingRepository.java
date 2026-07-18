@@ -77,6 +77,19 @@ public class JdbcEmbeddingRepository implements EmbeddingRepository {
     jdbcTemplate.update("DELETE FROM embedding");
   }
 
+  @Override
+  public long countEmbeddings() {
+    Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM embedding", Long.class);
+    return count == null ? 0 : count;
+  }
+
+  @Override
+  public long countEligibleChunks() {
+    Long count = jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM chunk WHERE length(trim(text)) > 0", Long.class);
+    return count == null ? 0 : count;
+  }
+
   private String toPgVector(float[] vector) {
     StringBuilder value = new StringBuilder("[");
     for (int i = 0; i < vector.length; i++) {

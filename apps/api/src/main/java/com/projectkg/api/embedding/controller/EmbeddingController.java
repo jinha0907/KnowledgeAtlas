@@ -3,12 +3,14 @@ package com.projectkg.api.embedding.controller;
 import com.projectkg.api.embedding.dto.EmbeddingBackfillResponse;
 import com.projectkg.api.embedding.dto.EmbeddingReindexRequest;
 import com.projectkg.api.embedding.dto.EmbeddingReindexResponse;
+import com.projectkg.api.embedding.dto.EmbeddingStatusResponse;
 import com.projectkg.api.embedding.service.EmbeddingBackfillService;
 import com.projectkg.api.embedding.service.EmbeddingBackfillService.BackfillResult;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,6 +31,12 @@ public class EmbeddingController {
     BackfillResult result = embeddingBackfillService.backfillAllDocuments();
     String status = result.configured() ? "success" : "disabled";
     return ResponseEntity.ok(new EmbeddingBackfillResponse(status, result.documents(), result.embeddings()));
+  }
+
+  @GetMapping("/status")
+  @Operation(summary = "Get configured and persisted embedding readiness without calling a provider")
+  public ResponseEntity<EmbeddingStatusResponse> status() {
+    return ResponseEntity.ok(embeddingBackfillService.status());
   }
 
   @PostMapping("/reindex")

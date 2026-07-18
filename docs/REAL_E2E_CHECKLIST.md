@@ -76,6 +76,12 @@ curl -s -X POST http://localhost:8080/api/documents/DOCUMENT_ID/decisions/extrac
 
 Run a fixed list of Korean test queries against `POST /api/search`, recording only document/block IDs and rank. Verify every decision remains `proposed` and every evidence quote is an exact stored block substring.
 
+Before running the destructive call, inspect readiness without contacting a model:
+
+```bash
+curl -s http://localhost:8080/api/embeddings/status
+```
+
 ## 5. Optional OpenAI Comparison Gate
 
 Run these only after separate approval. They transmit stored test-page blocks to the configured OpenAI provider and may incur cost. The embedding model is a different vector space, so use the same explicit re-index call before comparison:
@@ -100,6 +106,8 @@ curl -s -X POST http://localhost:8080/api/documents/DOCUMENT_ID/decisions/extrac
 Verify that analysis summary/tags appear in the Atlas and extracted decisions remain `proposed` with exact source quotes before accepting any decision.
 
 Compare the same query list using citation relevance, top-K rank, latency, and provider errors. Do not compare scores across embedding providers directly because each vector space has different score distributions.
+
+Use `docs/retrieval-evaluation.template.json` as the source-free run template. Keep completed result files local/ignored when they contain workspace-specific query wording.
 
 ## 6. Record Outcome
 

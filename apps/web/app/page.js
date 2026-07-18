@@ -34,20 +34,24 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResult, setSearchResult] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [embeddingStatus, setEmbeddingStatus] = useState(null);
+  const [reindexConfirmed, setReindexConfirmed] = useState(false);
   const [notice, setNotice] = useState("Connecting to your local knowledge base...");
   const [loading, setLoading] = useState(true);
 
   const loadAtlas = async () => {
     setLoading(true);
     try {
-      const [documentRows, decisionRows, graphData] = await Promise.all([
+      const [documentRows, decisionRows, graphData, embeddingData] = await Promise.all([
         request("/api/documents"),
         request("/api/decisions"),
         request("/api/project-graph"),
+        request("/api/embeddings/status"),
       ]);
       setDocuments(documentRows);
       setDecisions(decisionRows);
       setGraph(graphData);
+      setEmbeddingStatus(embeddingData);
       setSelectedDocument((current) => (
         documentRows.find((document) => document.id === current?.id) || documentRows[0] || null
       ));
@@ -142,6 +146,16 @@ export default function Home() {
       return;
     }
     runAction("Document analysis", `/api/documents/${selectedDocument.id}/analysis/run`);
+  };
+
+  const reindexEmbeddings = () => {
+    if (!reindexConfirmed) {
+      setNotice("Confirm embedding replacement before re-indexing.");
+      return;
+    }
+    runAction("Embedding re-index", "/api/embeddings/reindex", {
+      body: JSON.stringify({ confirm: true }),
+    });
   };
 
   const openEvidenceSource = (documentId, blockId = null) => {
@@ -334,7 +348,28 @@ export default function Home() {
             </section>
           )}
           <div className="rail-actions">
+            <section className="embedding-status" aria-label="Embedding readiness">
+              <p className="eyebrow">Retrieval readiness</p>
+              {!embeddingStatus && <p>Loading embedding status...</p>}
+              {embeddingStatus && (
+                <>
+                  <strong className={`embedding-state ${embeddingStatus.status}`}>{embeddingStatus.status.replaceAll("_", " ")}</strong>
+                  <p>
+                    {embeddingStatus.activeIdentity
+                      ? `${embeddingStatus.activeIdentity.provider}/${embeddingStatus.activeIdentity.model} · ${embeddingStatus.activeIdentity.dimensions}d`
+                      : "Keyword retrieval only"}
+                  </p>
+                  <small>{embeddingStatus.embeddedChunks}/{embeddingStatus.eligibleChunks} chunks embedded</small>
+                  {embeddingStatus.reindexRequired && <small className="warning">Stored vectors use another model. Re-index before semantic search.</small>}
+                </>
+              )}
+            </section>
             <button className="quiet-button" onClick={() => runAction("Embedding backfill", "/api/embeddings/backfill")}>Backfill embeddings</button>
+            <label className="reindex-confirm">
+              <input type="checkbox" checked={reindexConfirmed} onChange={(event) => setReindexConfirmed(event.target.checked)} />
+              I understand re-indexing replaces every stored embedding.
+            </label>
+            <button className="outline-button" disabled={!reindexConfirmed || embeddingStatus?.status === "disabled"} onClick={reindexEmbeddings}>Re-index embeddings</button>
             <button className="quiet-button" onClick={analyzeSelected}>Analyze summary &amp; tags</button>
             <button className="outline-button" onClick={extractSelected}>Extract decisions</button>
           </div>

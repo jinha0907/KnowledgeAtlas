@@ -75,6 +75,13 @@
   - requires `{ "confirm": true }`, deletes only persisted embedding rows, and regenerates them with the currently configured provider.
   - a provider/model/dimension mismatch blocks embedding backfill; hybrid search falls back to FTS until re-indexing is explicitly confirmed.
 
+## Implemented API surface (Phase 12)
+- `GET /api/embeddings/status`
+  - returns configured provider identity, persisted identities, eligible/embedded/missing chunk counts, and whether re-indexing is required.
+  - performs no model inference and never contacts Ollama or OpenAI.
+- Atlas retrieval readiness
+  - shows provider state before semantic retrieval and requires an explicit checkbox before it calls the destructive re-index API.
+
 ## Data flow (happy path)
 1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성
@@ -90,6 +97,10 @@
 - The active embedding identity is `(provider, model, dimensions)`. A corpus has exactly one active identity at a time.
 - Switching identity requires a confirmed re-index because cosine distances from different vector spaces must never be mixed.
 - The migration keeps a partial ivfflat index for current 1536-dimensional vectors. Other dimensions remain correct and use FTS plus sequential vector candidates until a corpus-size-specific index is introduced.
+
+## Retrieval evaluation rule
+- Copy `docs/retrieval-evaluation.template.json` to an ignored local result file and fill only evaluator-supplied queries plus expected local document/block IDs.
+- Run each query through `POST /api/search` after a confirmed re-index, then record returned document/block rank and latency. Do not compare raw similarity scores across providers.
 
 ## Non-goals (MVP)
 - Confluence/Jira/GitHub 연동은 이후 단계(플러그인 방식)

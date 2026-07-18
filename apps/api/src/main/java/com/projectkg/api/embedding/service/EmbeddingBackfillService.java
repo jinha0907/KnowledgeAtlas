@@ -2,6 +2,8 @@ package com.projectkg.api.embedding.service;
 
 import com.projectkg.api.embedding.repository.EmbeddingRepository;
 import com.projectkg.api.embedding.repository.EmbeddingRepository.ChunkForEmbedding;
+import com.projectkg.api.embedding.dto.EmbeddingIdentityDto;
+import com.projectkg.api.embedding.dto.EmbeddingStatusResponse;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -89,6 +91,25 @@ public class EmbeddingBackfillService {
     }
     EmbeddingProvider provider = embeddingProvider.get();
     return new EmbeddingIdentity(provider.provider(), provider.model(), provider.dimensions());
+  }
+
+  public EmbeddingStatusResponse status() {
+    List<EmbeddingIdentity> persisted = embeddingRepository.findEmbeddingIdentities();
+    long eligibleChunks = embeddingRepository.countEligibleChunks();
+    long embeddedChunks = embeddingRepository.countEmbeddings();
+    if (embeddingProvider.isEmpty()) {
+      return new EmbeddingStatusResponse(
+          "disabled", null, persisted.stream().map(EmbeddingIdentityDto::from).toList(),
+          eligibleChunks, embeddedChunks, Math.max(0, eligibleChunks - embeddedChunks), false);
+    }
+
+    EmbeddingIdentity active = activeIdentity();
+    boolean reindexRequired = !persisted.isEmpty() && !persisted.equals(List.of(active));
+    String status = reindexRequired ? "reindex_required"
+        : eligibleChunks == embeddedChunks ? "ready" : "incomplete";
+    return new EmbeddingStatusResponse(
+        status, EmbeddingIdentityDto.from(active), persisted.stream().map(EmbeddingIdentityDto::from).toList(),
+        eligibleChunks, embeddedChunks, Math.max(0, eligibleChunks - embeddedChunks), reindexRequired);
   }
 
   public record BackfillResult(boolean configured, int documents, int embeddings) {}

@@ -1,0 +1,11 @@
+{
+  "runLabel": "provider-model-date",
+  "cases": [
+    {
+      "id": "q-001",
+      "query": "<evaluator-supplied query>",
+      "expectedDocumentId": null,
+      "expectedBlockId": null
+    }
+  ]
+}

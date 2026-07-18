@@ -18,5 +18,13 @@ public interface EmbeddingRepository {
     throw new UnsupportedOperationException("Deleting embeddings is not supported");
   }
 
+  default long countEmbeddings() {
+    return 0;
+  }
+
+  default long countEligibleChunks() {
+    return 0;
+  }
+
   record ChunkForEmbedding(long chunkId, String text) {}
 }

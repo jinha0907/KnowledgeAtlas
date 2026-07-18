@@ -85,6 +85,35 @@ class EmbeddingBackfillServiceTest {
     assertEquals(List.of(), repository.upsertedChunkIds);
   }
 
+  @Test
+  void shouldReportReindexRequiredForAChangedProviderIdentity() {
+    FakeEmbeddingRepository repository = new FakeEmbeddingRepository(List.of());
+    repository.identities = List.of(new EmbeddingIdentity("openai", "text-embedding-3-small", 1536));
+    repository.eligibleChunks = 12;
+    repository.embeddedChunks = 12;
+    EmbeddingBackfillService service = new EmbeddingBackfillService(
+        repository, Optional.of(new FixedEmbeddingProvider()));
+
+    var status = service.status();
+
+    assertEquals("reindex_required", status.status());
+    assertEquals(true, status.reindexRequired());
+    assertEquals(12, status.embeddedChunks());
+  }
+
+  @Test
+  void shouldReportDisabledWithoutAnActiveProvider() {
+    FakeEmbeddingRepository repository = new FakeEmbeddingRepository(List.of());
+    repository.eligibleChunks = 4;
+    repository.embeddedChunks = 2;
+    EmbeddingBackfillService service = new EmbeddingBackfillService(repository, Optional.empty());
+
+    var status = service.status();
+
+    assertEquals("disabled", status.status());
+    assertEquals(2, status.missingChunks());
+  }
+
   private static final class FakeEmbeddingRepository implements EmbeddingRepository {
     private final List<ChunkForEmbedding> chunks;
     private final List<Long> upsertedChunkIds = new ArrayList<>();
@@ -93,6 +122,8 @@ class EmbeddingBackfillServiceTest {
     private int findCalls;
     private int deleteCalls;
     private String model;
+    private long eligibleChunks;
+    private long embeddedChunks;
 
     private FakeEmbeddingRepository(List<ChunkForEmbedding> chunks) {
       this.chunks = chunks;
@@ -124,6 +155,16 @@ class EmbeddingBackfillServiceTest {
     public void deleteAll() {
       deleteCalls++;
       identities = List.of();
+    }
+
+    @Override
+    public long countEmbeddings() {
+      return embeddedChunks;
+    }
+
+    @Override
+    public long countEligibleChunks() {
+      return eligibleChunks;
     }
   }
 
