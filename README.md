@@ -106,6 +106,9 @@ The same document checksum returns its prior successful analysis. Invalid provid
 - Each link is derived only from stored `decision_evidence`: `decision -> evidence block -> document`.
 - The Atlas status filter retains each selected decision's complete evidence path; selecting evidence opens the local source document.
 
+## Atlas Search
+The Atlas includes a citation-first search panel backed by `POST /api/search`. It works with keyword retrieval by default and uses hybrid retrieval automatically when embeddings are configured. Selecting a result opens and highlights the cited local document block.
+
 ## Contribution
 - Commit message convention: `docs/COMMIT_CONVENTION.md`
 

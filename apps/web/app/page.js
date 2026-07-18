@@ -29,7 +29,11 @@ export default function Home() {
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [documentDetail, setDocumentDetail] = useState(null);
   const [selectedDecision, setSelectedDecision] = useState(null);
+  const [highlightedBlockId, setHighlightedBlockId] = useState(null);
   const [filter, setFilter] = useState("proposed");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResult, setSearchResult] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [notice, setNotice] = useState("Connecting to your local knowledge base...");
   const [loading, setLoading] = useState(true);
 
@@ -140,14 +144,38 @@ export default function Home() {
     runAction("Document analysis", `/api/documents/${selectedDocument.id}/analysis/run`);
   };
 
-  const openEvidenceSource = (documentId) => {
+  const openEvidenceSource = (documentId, blockId = null) => {
     const document = documents.find((item) => item.id === documentId);
     if (!document) {
       setNotice("The source document is no longer available locally.");
       return;
     }
     setSelectedDocument(document);
+    setHighlightedBlockId(blockId);
     setNotice(`Opened source evidence from ${document.title || "Untitled"}.`);
+  };
+
+  const searchKnowledge = async (event) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResult(null);
+      setNotice("Enter a search query first.");
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const result = await request("/api/search", {
+        method: "POST",
+        body: JSON.stringify({ query, topK: 6 }),
+      });
+      setSearchResult(result);
+      setNotice(result.citations.length ? "Evidence found in your local knowledge base." : result.answer);
+    } catch (error) {
+      setNotice(`Knowledge search failed: ${error.message}`);
+    } finally {
+      setSearchLoading(false);
+    }
   };
 
   const selectGraphNode = (node) => {
@@ -158,8 +186,17 @@ export default function Home() {
       }
       return;
     }
-    openEvidenceSource(node.documentId);
+    openEvidenceSource(node.documentId, node.blockId);
   };
+
+  const previewBlocks = useMemo(() => {
+    if (!documentDetail) {
+      return [];
+    }
+    const highlighted = documentDetail.blocks.find((block) => block.blockId === highlightedBlockId);
+    const remaining = documentDetail.blocks.filter((block) => block.blockId !== highlightedBlockId);
+    return highlighted ? [highlighted, ...remaining.slice(0, 3)] : remaining.slice(0, 4);
+  }, [documentDetail, highlightedBlockId]);
 
   return (
     <main className="atlas-shell">
@@ -207,6 +244,42 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="search-dock panel" aria-labelledby="knowledge-search-title">
+        <div className="search-copy">
+          <p className="eyebrow">Citation-first retrieval</p>
+          <h3 id="knowledge-search-title">Ask the stored project record.</h3>
+          <p>Keyword search is always available. When embeddings are configured, the same API adds semantic retrieval without changing the cited source.</p>
+        </div>
+        <form className="search-form" onSubmit={searchKnowledge}>
+          <label htmlFor="knowledge-query">Search synced knowledge</label>
+          <div>
+            <input
+              id="knowledge-query"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="e.g. release timing, launch plan"
+            />
+            <button type="submit" disabled={searchLoading}>{searchLoading ? "Searching" : "Search"}</button>
+          </div>
+        </form>
+        {searchResult && (
+          <div className="search-results" aria-live="polite">
+            <p className="search-answer">{searchResult.answer}</p>
+            {searchResult.citations.map((citation) => (
+              <button
+                key={`${citation.documentId}-${citation.blockId}`}
+                className="search-citation"
+                onClick={() => openEvidenceSource(citation.documentId, citation.blockId)}
+              >
+                <span>{citation.title || "Untitled"} <b>BLOCK {citation.blockId}</b></span>
+                <strong>{citation.text}</strong>
+                <small>relevance {citation.score.toFixed(3)} · open local source</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="workspace-grid">
         <aside className="document-rail panel">
           <div className="section-heading">
@@ -219,7 +292,10 @@ export default function Home() {
               <button
                 key={document.id}
                 className={`document-card ${selectedDocument?.id === document.id ? "selected" : ""}`}
-                onClick={() => setSelectedDocument(document)}
+                onClick={() => {
+                  setHighlightedBlockId(null);
+                  setSelectedDocument(document);
+                }}
               >
                 <span className="source-pill">{document.sourceType}</span>
                 <strong>{document.title || "Untitled"}</strong>
@@ -236,8 +312,8 @@ export default function Home() {
               <strong>{documentDetail.title || "Untitled"}</strong>
               <span>{documentDetail.blocks.length} stored blocks</span>
               <div className="block-list">
-                {documentDetail.blocks.slice(0, 4).map((block) => (
-                  <p key={block.blockId}><b>{block.blockId}</b>{block.text}</p>
+                {previewBlocks.map((block) => (
+                  <p key={block.blockId} className={block.blockId === highlightedBlockId ? "block-highlight" : ""}><b>{block.blockId}</b>{block.text}</p>
                 ))}
                 {documentDetail.blocks.length > 4 && <p className="more-blocks">+ {documentDetail.blocks.length - 4} more blocks</p>}
               </div>
@@ -329,7 +405,7 @@ export default function Home() {
                     <span>BLOCK {evidence.blockId}</span>
                     <blockquote>“{evidence.quote}”</blockquote>
                     {evidence.rationale && <p>{evidence.rationale}</p>}
-                    <button className="evidence-link" onClick={() => openEvidenceSource(evidence.documentId)}>
+                    <button className="evidence-link" onClick={() => openEvidenceSource(evidence.documentId, evidence.blockId)}>
                       Open source document
                     </button>
                   </article>
