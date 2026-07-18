@@ -1,5 +1,6 @@
 package com.projectkg.api.search.repository;
 
+import com.projectkg.api.embedding.service.EmbeddingIdentity;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -44,7 +45,9 @@ public class JdbcSearchRepository implements SearchRepository {
   }
 
   @Override
-  public List<SearchRow> searchByHybrid(String query, float[] queryEmbedding, int topK) {
+  public List<SearchRow> searchByHybrid(
+      String query, float[] queryEmbedding, EmbeddingIdentity identity, int topK
+  ) {
     int candidateLimit = Math.max(topK * 4, 20);
     String sql = """
         WITH keyword_candidates AS (
@@ -62,6 +65,7 @@ public class JdbcSearchRepository implements SearchRepository {
                  1.0 / (60 + ROW_NUMBER() OVER (ORDER BY e.embedding <=> CAST(? AS vector), e.chunk_id ASC))
                    AS rrf_score
           FROM embedding e
+          WHERE e.provider = ? AND e.model = ? AND e.dimensions = ?
           ORDER BY e.embedding <=> CAST(? AS vector), e.chunk_id ASC
           LIMIT ?
         ),
@@ -96,9 +100,25 @@ public class JdbcSearchRepository implements SearchRepository {
         query,
         candidateLimit,
         vector,
+        identity.provider(),
+        identity.model(),
+        identity.dimensions(),
         vector,
         candidateLimit,
         topK);
+  }
+
+  @Override
+  public List<EmbeddingIdentity> findEmbeddingIdentities() {
+    return jdbcTemplate.query(
+        """
+        SELECT provider, model, dimensions
+        FROM embedding
+        GROUP BY provider, model, dimensions
+        ORDER BY provider ASC, model ASC, dimensions ASC
+        """,
+        (rs, rowNum) -> new EmbeddingIdentity(
+            rs.getString("provider"), rs.getString("model"), rs.getInt("dimensions")));
   }
 
   private String toPgVector(float[] vector) {

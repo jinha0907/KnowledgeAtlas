@@ -12,7 +12,7 @@
   - `search_vector` generated column for FTS (`to_tsvector('simple', text)`)
   - unique: `(document_id, block_id, chunk_index)` for deterministic chunk replacement
 - `embedding`
-  - `chunk_id` (pk/fk), `embedding(vector(1536))`, `model`, `created_at`
+  - `chunk_id` (pk/fk), `embedding(vector)`, `provider`, `model`, `dimensions`, `created_at`
 - `decision`
   - `id` (pk), `title`, `status(proposed/accepted/obsolete)`, `discussion`, `outcome`, optional `confidence`, `supersedes_decision_id`, optional `extraction_run_id`, timestamps
 - `decision_evidence`
@@ -37,9 +37,10 @@
 - `idx_embedding_vector_ivfflat` (ivfflat on `embedding.embedding`) for vector retrieval path.
 
 ## Embedding invariants (Phase 5)
-- The current schema stores 1536-dimensional vectors, matching the configured `text-embedding-3-small` default.
+- Each stored vector records its `(provider, model, dimensions)` identity. Existing pre-Phase-11 rows migrate as `openai/text-embedding-3-small/1536` only when that was the configured default; test/manual rows retain their stored model with provider `openai` and dimensions `1536`.
 - Replacing a chunk deletes its old embedding through the foreign-key cascade. Unchanged chunk checksums retain their chunk ID and existing embedding.
 - Only chunks without an embedding are sent to the configured provider. `POST /api/embeddings/backfill` processes existing missing rows after a provider is enabled.
+- Backfill is rejected when the active provider identity differs from stored rows. `POST /api/embeddings/reindex` is the only supported model-switch operation; it deletes `embedding` rows only, then regenerates them.
 
 ## Decision lifecycle invariant
 - Valid transitions: `proposed -> accepted -> obsolete`.

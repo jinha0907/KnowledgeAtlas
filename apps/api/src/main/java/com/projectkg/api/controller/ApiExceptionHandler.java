@@ -3,6 +3,7 @@ package com.projectkg.api.controller;
 import com.projectkg.api.notion.repository.JdbcSyncJobRunRepository.SyncAlreadyRunningException;
 import com.projectkg.api.decision.service.DecisionExtractionService.DecisionExtractionAlreadyRunningException;
 import com.projectkg.api.analysis.service.DocumentAnalysisService.DocumentAnalysisAlreadyRunningException;
+import com.projectkg.api.embedding.service.EmbeddingReindexRequiredException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,5 +38,10 @@ public class ApiExceptionHandler {
       DocumentAnalysisAlreadyRunningException ex
   ) {
     return ResponseEntity.status(409).body(Map.of("error", ex.getMessage()));
+  }
+
+  @ExceptionHandler(EmbeddingReindexRequiredException.class)
+  public ResponseEntity<Map<String, String>> handleEmbeddingReindexRequired(EmbeddingReindexRequiredException ex) {
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
   }
 }

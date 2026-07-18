@@ -21,6 +21,11 @@ embedding:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
     api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+    dimensions: ${OPENAI_EMBEDDING_DIMENSIONS:1536}
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_EMBEDDING_MODEL:bge-m3}
+    dimensions: ${OLLAMA_EMBEDDING_DIMENSIONS:1024}
 
 decision-extraction:
   provider: ${DECISION_EXTRACTION_PROVIDER:none}
@@ -28,6 +33,9 @@ decision-extraction:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
     api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_DECISION_MODEL:gpt-4.1-mini}
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_DECISION_MODEL:qwen3:4b}
 
 document-analysis:
   provider: ${DOCUMENT_ANALYSIS_PROVIDER:none}
@@ -35,6 +43,9 @@ document-analysis:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
     api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_DOCUMENT_ANALYSIS_MODEL:gpt-4.1-mini}
+  ollama:
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_DOCUMENT_ANALYSIS_MODEL:qwen3:4b}
 
 app:
   cors:

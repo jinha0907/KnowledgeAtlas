@@ -66,16 +66,30 @@
   - 기존 `POST /api/search`를 사용해 title, score, document ID, block ID, text로 구성된 citation을 표시
   - 결과 선택 시 해당 로컬 문서와 block을 source inspector에서 연다
 
+## Implemented API surface (Phase 11)
+- Local Ollama providers
+  - `EMBEDDING_PROVIDER=ollama` calls a local Ollama `/api/embed` endpoint without an API key.
+  - `DOCUMENT_ANALYSIS_PROVIDER=ollama` and `DECISION_EXTRACTION_PROVIDER=ollama` use local `/api/chat` JSON responses.
+  - Providers never silently fall back from Ollama to OpenAI; inference failure leaves source data intact and search falls back to FTS.
+- `POST /api/embeddings/reindex`
+  - requires `{ "confirm": true }`, deletes only persisted embedding rows, and regenerates them with the currently configured provider.
+  - a provider/model/dimension mismatch blocks embedding backfill; hybrid search falls back to FTS until re-indexing is explicitly confirmed.
+
 ## Data flow (happy path)
 1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성
-3) 변경된 chunk만 embedding 생성 -> pgvector upsert (기존 데이터는 수동 backfill 가능)
+3) 변경된 chunk만 active provider embedding 생성 -> pgvector upsert (기존 데이터는 수동 backfill 가능)
 4) 검색 API: query embedding + 키워드 FTS를 deterministic RRF로 결합 -> 결과 + 근거 반환
 5) 회의록 처리: 논의/결정 추출 -> Decision 엔티티 + evidence 링크 저장
 6) Web UI: 문서/결정 read API를 조회 -> evidence가 가리키는 로컬 문서 block을 열어 검토
 7) Document analysis: 저장 block -> optional provider -> checksum-idempotent summary/tags -> Atlas에서 검토
 8) Project graph: documents + decisions + decision evidence -> deterministic node/edge API -> Atlas graph에서 근거 추적
 9) Knowledge search: user query -> retrieval API -> cited block results -> Atlas source inspector
+
+## Local model operating rule
+- The active embedding identity is `(provider, model, dimensions)`. A corpus has exactly one active identity at a time.
+- Switching identity requires a confirmed re-index because cosine distances from different vector spaces must never be mixed.
+- The migration keeps a partial ivfflat index for current 1536-dimensional vectors. Other dimensions remain correct and use FTS plus sequential vector candidates until a corpus-size-specific index is introduced.
 
 ## Non-goals (MVP)
 - Confluence/Jira/GitHub 연동은 이후 단계(플러그인 방식)

@@ -1,5 +1,6 @@
 package com.projectkg.api.embedding.repository;
 
+import com.projectkg.api.embedding.service.EmbeddingIdentity;
 import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -42,17 +43,38 @@ public class JdbcEmbeddingRepository implements EmbeddingRepository {
   }
 
   @Override
-  public void upsert(long chunkId, float[] vector, String model) {
+  public void upsert(long chunkId, float[] vector, EmbeddingIdentity identity) {
     jdbcTemplate.update(
         """
-        INSERT INTO embedding (chunk_id, embedding, model, created_at)
-        VALUES (?, CAST(? AS vector), ?, NOW())
+        INSERT INTO embedding (chunk_id, embedding, provider, model, dimensions, created_at)
+        VALUES (?, CAST(? AS vector), ?, ?, ?, NOW())
         ON CONFLICT (chunk_id)
-        DO UPDATE SET embedding = EXCLUDED.embedding, model = EXCLUDED.model, created_at = NOW()
+        DO UPDATE SET embedding = EXCLUDED.embedding, provider = EXCLUDED.provider,
+            model = EXCLUDED.model, dimensions = EXCLUDED.dimensions, created_at = NOW()
         """,
         chunkId,
         toPgVector(vector),
-        model);
+        identity.provider(),
+        identity.model(),
+        identity.dimensions());
+  }
+
+  @Override
+  public List<EmbeddingIdentity> findEmbeddingIdentities() {
+    return jdbcTemplate.query(
+        """
+        SELECT provider, model, dimensions
+        FROM embedding
+        GROUP BY provider, model, dimensions
+        ORDER BY provider ASC, model ASC, dimensions ASC
+        """,
+        (rs, rowNum) -> new EmbeddingIdentity(
+            rs.getString("provider"), rs.getString("model"), rs.getInt("dimensions")));
+  }
+
+  @Override
+  public void deleteAll() {
+    jdbcTemplate.update("DELETE FROM embedding");
   }
 
   private String toPgVector(float[] vector) {

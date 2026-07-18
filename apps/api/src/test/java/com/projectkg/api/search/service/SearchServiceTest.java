@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.projectkg.api.embedding.service.EmbeddingProvider;
+import com.projectkg.api.embedding.service.EmbeddingIdentity;
 import com.projectkg.api.search.dto.SearchRequest;
 import com.projectkg.api.search.dto.SearchResponse;
 import com.projectkg.api.search.repository.SearchRepository;
@@ -49,30 +50,62 @@ class SearchServiceTest {
     assertEquals("Evidence found. See citations.", response.answer());
   }
 
+  @Test
+  void shouldFallBackToKeywordWhenPersistedEmbeddingsUseAnotherModel() {
+    HybridSearchRepository repository = new HybridSearchRepository();
+    repository.identities = List.of(new EmbeddingIdentity("openai", "text-embedding-3-small", 1536));
+    repository.keywordRows = List.of(new SearchRow(3L, 30L, "b3", "Keyword doc", "Keyword text", 0.2));
+    SearchService searchService = new SearchService(repository, Optional.of(new FixedEmbeddingProvider()));
+
+    SearchResponse response = searchService.search(new SearchRequest("semantic query", 3));
+
+    assertTrue(!repository.hybridCalled);
+    assertEquals(30L, response.citations().getFirst().documentId());
+  }
+
   private static final class HybridSearchRepository implements SearchRepository {
     private boolean hybridCalled;
+    private List<EmbeddingIdentity> identities = List.of();
+    private List<SearchRow> keywordRows = List.of();
 
     @Override
     public List<SearchRow> searchByKeyword(String query, int topK) {
-      return List.of();
+      return keywordRows;
     }
 
     @Override
-    public List<SearchRow> searchByHybrid(String query, float[] queryEmbedding, int topK) {
+    public List<SearchRow> searchByHybrid(
+        String query, float[] queryEmbedding, EmbeddingIdentity identity, int topK
+    ) {
       hybridCalled = true;
       return List.of(new SearchRow(2L, 20L, "b2", "Semantic doc", "Semantic text", 0.03));
+    }
+
+    @Override
+    public List<EmbeddingIdentity> findEmbeddingIdentities() {
+      return identities;
     }
   }
 
   private static final class FixedEmbeddingProvider implements EmbeddingProvider {
+    @Override
+    public String provider() {
+      return "ollama";
+    }
+
     @Override
     public String model() {
       return "test";
     }
 
     @Override
+    public int dimensions() {
+      return 1024;
+    }
+
+    @Override
     public List<float[]> embed(List<String> inputs) {
-      return List.of(new float[1536]);
+      return List.of(new float[1024]);
     }
   }
 }

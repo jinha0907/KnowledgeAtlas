@@ -1,7 +1,8 @@
 package com.projectkg.api.search.service;
 
-import com.projectkg.api.embedding.service.EmbeddingBackfillService;
+import com.projectkg.api.embedding.service.EmbeddingIdentity;
 import com.projectkg.api.embedding.service.EmbeddingProvider;
+import com.projectkg.api.embedding.service.EmbeddingReindexRequiredException;
 import com.projectkg.api.search.dto.SearchCitationDto;
 import com.projectkg.api.search.dto.SearchRequest;
 import com.projectkg.api.search.dto.SearchResponse;
@@ -65,10 +66,21 @@ public class SearchService {
 
     try {
       List<float[]> embeddings = embeddingProvider.get().embed(List.of(query));
-      if (embeddings.size() != 1 || embeddings.getFirst().length != EmbeddingBackfillService.EMBEDDING_DIMENSIONS) {
+      if (embeddings.size() != 1 || embeddings.getFirst().length != embeddingProvider.get().dimensions()) {
         throw new IllegalStateException("Embedding provider returned an invalid query vector");
       }
-      return searchRepository.searchByHybrid(query, embeddings.getFirst(), topK);
+      EmbeddingIdentity identity = new EmbeddingIdentity(
+          embeddingProvider.get().provider(),
+          embeddingProvider.get().model(),
+          embeddingProvider.get().dimensions());
+      List<EmbeddingIdentity> persisted = searchRepository.findEmbeddingIdentities();
+      if (!persisted.isEmpty() && !persisted.equals(List.of(identity))) {
+        throw new EmbeddingReindexRequiredException(identity, persisted.toString());
+      }
+      return searchRepository.searchByHybrid(query, embeddings.getFirst(), identity, topK);
+    } catch (EmbeddingReindexRequiredException ex) {
+      logger.warn("Hybrid retrieval requires a confirmed re-index; falling back to keyword search");
+      return searchRepository.searchByKeyword(query, topK);
     } catch (RuntimeException ex) {
       logger.warn("Hybrid retrieval unavailable; falling back to keyword search", ex);
       return searchRepository.searchByKeyword(query, topK);

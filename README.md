@@ -55,24 +55,36 @@ Required env for real Notion sync:
 - `apps/web` provides the local project/decision map and buttons for sync, optional embedding backfill, and optional decision extraction.
 
 ## Embeddings and Hybrid Search
-By default, the API uses keyword retrieval only. To enable OpenAI embeddings and pgvector hybrid retrieval, set the following local `.env` values:
+By default, the API uses keyword retrieval only. The recommended local baseline uses Ollama and does not require an API key:
+
+```bash
+ollama pull bge-m3
+EMBEDDING_PROVIDER=ollama
+OLLAMA_EMBEDDING_MODEL=bge-m3
+OLLAMA_EMBEDDING_DIMENSIONS=1024
+```
+
+After restarting the API, explicitly build the active vector space:
+
+```bash
+curl -s -X POST http://localhost:8080/api/embeddings/reindex \
+  -H 'Content-Type: application/json' \
+  -d '{"confirm":true}'
+```
+
+The re-index endpoint deletes only `embedding` rows. It is required whenever provider, model, or dimension changes; source documents and chunks are retained. To compare against OpenAI later, set:
 
 ```bash
 EMBEDDING_PROVIDER=openai
 OPENAI_API_KEY=your_api_key
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_EMBEDDING_DIMENSIONS=1536
 ```
 
-Then generate embeddings for documents synced before the provider was enabled:
-
-```bash
-curl -s -X POST http://localhost:8080/api/embeddings/backfill
-```
-
-`OPENAI_API_KEY` is never committed. New or changed chunks are backfilled after sync; unchanged chunk text retains its existing embedding.
+Then run the same confirmed re-index command. `OPENAI_API_KEY` is never committed. New or changed chunks are backfilled after sync; unchanged chunk text retains its existing embedding.
 
 ## Decision Extraction
-Decision extraction is disabled by default. Enable it only when meeting-note content may be sent to the configured OpenAI API:
+Decision extraction is disabled by default. For a local provider, run `ollama pull qwen3:4b` and set `DECISION_EXTRACTION_PROVIDER=ollama`. To use OpenAI instead, enable it only when meeting-note content may be sent to the configured OpenAI API:
 
 ```bash
 DECISION_EXTRACTION_PROVIDER=openai
@@ -88,7 +100,7 @@ curl -s -X POST http://localhost:8080/api/documents/1/decisions/extract
 Candidates are stored as `proposed` with exact block quotes. Repeating extraction for unchanged source content returns the existing candidates instead of creating duplicates.
 
 ## Document Analysis
-Document analysis is disabled by default. It creates a concise stored summary and up to eight reviewable tags from a synced document's blocks:
+Document analysis is disabled by default. For a local provider, run `ollama pull qwen3:4b` and set `DOCUMENT_ANALYSIS_PROVIDER=ollama`. It creates a concise stored summary and up to eight reviewable tags from a synced document's blocks; use the following settings for OpenAI:
 
 ```bash
 DOCUMENT_ANALYSIS_PROVIDER=openai
@@ -110,7 +122,7 @@ The same document checksum returns its prior successful analysis. Invalid provid
 The Atlas includes a citation-first search panel backed by `POST /api/search`. It works with keyword retrieval by default and uses hybrid retrieval automatically when embeddings are configured. Selecting a result opens and highlights the cited local document block.
 
 ## Real E2E
-Use `docs/REAL_E2E_CHECKLIST.md` for the user-approved Notion/OpenAI verification flow. It separates the Notion and optional OpenAI approval gates and uses Docker Compose for database inspection.
+Use `docs/REAL_E2E_CHECKLIST.md` for the user-approved Notion, local Ollama, and optional OpenAI comparison workflow. It separates external transmission/expense gates and uses Docker Compose for database inspection.
 
 ## Contribution
 - Commit message convention: `docs/COMMIT_CONVENTION.md`

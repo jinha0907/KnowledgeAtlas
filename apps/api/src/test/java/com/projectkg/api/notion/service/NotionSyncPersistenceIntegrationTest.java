@@ -10,6 +10,7 @@ import com.projectkg.api.notion.dto.NotionSyncRequest;
 import com.projectkg.api.notion.dto.NotionSyncResponse;
 import com.projectkg.api.document.service.DocumentService;
 import com.projectkg.api.analysis.repository.DocumentAnalysisRunRepository;
+import com.projectkg.api.embedding.service.EmbeddingIdentity;
 import com.projectkg.api.graph.service.ProjectGraphService;
 import com.projectkg.api.search.repository.JdbcSearchRepository;
 import java.util.List;
@@ -75,7 +76,7 @@ class NotionSyncPersistenceIntegrationTest {
             block("block-b", "Deprecated project detail"))));
 
     assertTrue(firstSync.checksumChanged());
-    assertEquals(6, jdbcTemplate.queryForObject(
+    assertEquals(7, jdbcTemplate.queryForObject(
         "SELECT COUNT(*) FROM flyway_schema_history WHERE success", Integer.class));
     assertEquals("vector", jdbcTemplate.queryForObject(
         "SELECT extname FROM pg_extension WHERE extname = 'vector'", String.class));
@@ -88,10 +89,14 @@ class NotionSyncPersistenceIntegrationTest {
     long originalChunkId = jdbcTemplate.queryForObject(
         "SELECT id FROM chunk WHERE block_id = 'block-a'", Long.class);
     jdbcTemplate.update(
-        "INSERT INTO embedding (chunk_id, embedding, model) VALUES (?, CAST(? AS vector), 'test')",
+        """
+        INSERT INTO embedding (chunk_id, embedding, provider, model, dimensions)
+        VALUES (?, CAST(? AS vector), 'openai', 'test', 1536)
+        """,
         originalChunkId,
         unitVector());
-    assertTrue(jdbcSearchRepository.searchByHybrid("first", unitVectorValues(), 5).stream()
+    assertTrue(jdbcSearchRepository.searchByHybrid(
+        "first", unitVectorValues(), new EmbeddingIdentity("openai", "test", 1536), 5).stream()
         .anyMatch(row -> row.blockId().equals("block-a")));
     shouldPersistOneIdempotentDecisionExtractionRun(firstSync.documentId());
     assertEquals(3, projectGraphService.getGraph().nodes().size());
