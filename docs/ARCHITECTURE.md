@@ -54,6 +54,13 @@
 - Document read API와 Atlas
   - 현재 source checksum의 analysis run success/running/failed 상태와 성공한 summary/tags를 함께 반환하고 표시
 
+## Implemented API surface (Phase 9)
+- `GET /api/project-graph`
+  - stable `document-{id}`, `decision-{id}`, `evidence-{id}` 노드와 deterministic edge를 반환
+  - 모든 edge는 persisted `decision_evidence` 행의 `decision -> evidence -> document/block` 경로에서만 파생
+- Atlas graph
+  - SVG edge와 keyboard-operable node를 사용하며, 상태 필터가 선택한 decision의 evidence/document 경로를 함께 유지
+
 ## Data flow (happy path)
 1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성
@@ -62,6 +69,7 @@
 5) 회의록 처리: 논의/결정 추출 -> Decision 엔티티 + evidence 링크 저장
 6) Web UI: 문서/결정 read API를 조회 -> evidence가 가리키는 로컬 문서 block을 열어 검토
 7) Document analysis: 저장 block -> optional provider -> checksum-idempotent summary/tags -> Atlas에서 검토
+8) Project graph: documents + decisions + decision evidence -> deterministic node/edge API -> Atlas graph에서 근거 추적
 
 ## Non-goals (MVP)
 - Confluence/Jira/GitHub 연동은 이후 단계(플러그인 방식)

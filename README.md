@@ -101,6 +101,11 @@ curl -s -X POST http://localhost:8080/api/documents/1/analysis/run
 
 The same document checksum returns its prior successful analysis. Invalid provider output is rejected rather than stored, and the Atlas shows successful, pending, failed, and unavailable states.
 
+## Evidence Graph
+- `GET /api/project-graph` returns the Atlas graph read model.
+- Each link is derived only from stored `decision_evidence`: `decision -> evidence block -> document`.
+- The Atlas status filter retains each selected decision's complete evidence path; selecting evidence opens the local source document.
+
 ## Contribution
 - Commit message convention: `docs/COMMIT_CONVENTION.md`
 

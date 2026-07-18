@@ -25,6 +25,7 @@ async function request(path, options = {}) {
 export default function Home() {
   const [documents, setDocuments] = useState([]);
   const [decisions, setDecisions] = useState([]);
+  const [graph, setGraph] = useState({ nodes: [], edges: [] });
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [documentDetail, setDocumentDetail] = useState(null);
   const [selectedDecision, setSelectedDecision] = useState(null);
@@ -35,16 +36,20 @@ export default function Home() {
   const loadAtlas = async () => {
     setLoading(true);
     try {
-      const [documentRows, decisionRows] = await Promise.all([
+      const [documentRows, decisionRows, graphData] = await Promise.all([
         request("/api/documents"),
         request("/api/decisions"),
+        request("/api/project-graph"),
       ]);
       setDocuments(documentRows);
       setDecisions(decisionRows);
+      setGraph(graphData);
       setSelectedDocument((current) => (
         documentRows.find((document) => document.id === current?.id) || documentRows[0] || null
       ));
-      setSelectedDecision((current) => current || decisionRows[0] || null);
+      setSelectedDecision((current) => (
+        decisionRows.find((decision) => decision.id === current?.id) || decisionRows[0] || null
+      ));
       setNotice(documentRows.length ? "Atlas is in sync." : "No synced documents yet. Run a Notion sync to begin.");
     } catch (error) {
       setNotice(`API unavailable: ${error.message}`);
@@ -68,10 +73,41 @@ export default function Home() {
       .catch((error) => setNotice(`Could not load source blocks: ${error.message}`));
   }, [selectedDocument]);
 
-  const visibleDecisions = useMemo(
-    () => decisions.filter((decision) => filter === "all" || decision.status === filter),
-    [decisions, filter],
-  );
+  const graphLayout = useMemo(() => {
+    const decisionNodes = graph.nodes.filter((node) => (
+      node.type === "decision" && (filter === "all" || node.status === filter)
+    ));
+    const decisionIds = new Set(decisionNodes.map((node) => node.id));
+    const supportsEdges = graph.edges.filter((edge) => edge.type === "supports" && decisionIds.has(edge.sourceId));
+    const evidenceIds = new Set(supportsEdges.map((edge) => edge.targetId));
+    const sourceEdges = graph.edges.filter((edge) => edge.type === "sources" && evidenceIds.has(edge.sourceId));
+    const documentIds = new Set(sourceEdges.map((edge) => edge.targetId));
+    if (filter === "all") {
+      graph.nodes.filter((node) => node.type === "document").forEach((node) => documentIds.add(node.id));
+    }
+
+    const nodes = graph.nodes.filter((node) => (
+      decisionIds.has(node.id) || evidenceIds.has(node.id) || documentIds.has(node.id)
+    ));
+    const edges = [...supportsEdges, ...sourceEdges].filter((edge) => (
+      nodes.some((node) => node.id === edge.sourceId) && nodes.some((node) => node.id === edge.targetId)
+    ));
+    const lanes = {
+      document: nodes.filter((node) => node.type === "document"),
+      decision: nodes.filter((node) => node.type === "decision"),
+      evidence: nodes.filter((node) => node.type === "evidence"),
+    };
+    const height = Math.max(350, Math.max(...Object.values(lanes).map((items) => items.length), 1) * 112 + 72);
+    const positions = new Map();
+    const x = { document: 14, decision: 50, evidence: 86 };
+    Object.entries(lanes).forEach(([type, nodesInLane]) => {
+      nodesInLane.forEach((node, index) => positions.set(node.id, {
+        x: x[type],
+        y: 58 + index * 112,
+      }));
+    });
+    return { nodes, edges, positions, height };
+  }, [filter, graph]);
 
   const runAction = async (label, path, options = {}) => {
     setNotice(`${label} is running...`);
@@ -112,6 +148,17 @@ export default function Home() {
     }
     setSelectedDocument(document);
     setNotice(`Opened source evidence from ${document.title || "Untitled"}.`);
+  };
+
+  const selectGraphNode = (node) => {
+    if (node.type === "decision") {
+      const decision = decisions.find((item) => item.id === node.decisionId);
+      if (decision) {
+        setSelectedDecision(decision);
+      }
+      return;
+    }
+    openEvidenceSource(node.documentId);
   };
 
   return (
@@ -231,18 +278,37 @@ export default function Home() {
             </div>
           </div>
           <div className="decision-map">
-            {visibleDecisions.length === 0 && <p className="empty-state">No decisions in this view yet.</p>}
-            {visibleDecisions.map((decision, index) => (
-              <button
-                key={decision.id}
-                className={`decision-node node-${index % 4} ${selectedDecision?.id === decision.id ? "selected" : ""}`}
-                onClick={() => setSelectedDecision(decision)}
-              >
-                <span className={`status-badge ${decision.status}`}>{decision.status}</span>
-                <strong>{decision.title}</strong>
-                <small>{decision.evidence?.length || 0} evidence links</small>
-              </button>
-            ))}
+            <div className="graph-legend" aria-hidden="true">
+              <span className="document">Document</span><span className="decision">Decision</span><span className="evidence">Evidence block</span>
+            </div>
+            {graphLayout.nodes.length === 0 && <p className="empty-state">No evidence-backed decisions in this view yet.</p>}
+            {graphLayout.nodes.length > 0 && (
+              <div className="graph-canvas" style={{ minHeight: `${graphLayout.height}px` }}>
+                <svg viewBox={`0 0 100 ${graphLayout.height}`} preserveAspectRatio="none" aria-hidden="true">
+                  {graphLayout.edges.map((edge) => {
+                    const source = graphLayout.positions.get(edge.sourceId);
+                    const target = graphLayout.positions.get(edge.targetId);
+                    return source && target && <line key={edge.id} x1={source.x} y1={source.y} x2={target.x} y2={target.y} />;
+                  })}
+                </svg>
+                {graphLayout.nodes.map((node) => {
+                  const position = graphLayout.positions.get(node.id);
+                  const selected = node.type === "decision" && selectedDecision?.id === node.decisionId;
+                  return position && (
+                    <button
+                      key={node.id}
+                      className={`graph-node ${node.type} ${selected ? "selected" : ""}`}
+                      style={{ left: `${position.x}%`, top: `${position.y}px` }}
+                      onClick={() => selectGraphNode(node)}
+                      aria-label={`${node.type}: ${node.label}`}
+                    >
+                      <span>{node.type === "evidence" ? node.blockId : node.type}</span>
+                      <strong>{node.label}</strong>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
 

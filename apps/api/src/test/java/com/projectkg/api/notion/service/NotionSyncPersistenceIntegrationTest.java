@@ -10,6 +10,7 @@ import com.projectkg.api.notion.dto.NotionSyncRequest;
 import com.projectkg.api.notion.dto.NotionSyncResponse;
 import com.projectkg.api.document.service.DocumentService;
 import com.projectkg.api.analysis.repository.DocumentAnalysisRunRepository;
+import com.projectkg.api.graph.service.ProjectGraphService;
 import com.projectkg.api.search.repository.JdbcSearchRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,9 @@ class NotionSyncPersistenceIntegrationTest {
   @Autowired
   private DocumentAnalysisRunRepository documentAnalysisRunRepository;
 
+  @Autowired
+  private ProjectGraphService projectGraphService;
+
   @Test
   void shouldApplyMigrationsAndRemoveBlocksDeletedFromTheSource() {
     NotionSyncResponse firstSync = notionSyncService.sync(new NotionSyncRequest(
@@ -90,6 +94,9 @@ class NotionSyncPersistenceIntegrationTest {
     assertTrue(jdbcSearchRepository.searchByHybrid("first", unitVectorValues(), 5).stream()
         .anyMatch(row -> row.blockId().equals("block-a")));
     shouldPersistOneIdempotentDecisionExtractionRun(firstSync.documentId());
+    assertEquals(3, projectGraphService.getGraph().nodes().size());
+    assertEquals(List.of("edge-decision-1", "edge-document-1"), projectGraphService.getGraph().edges()
+        .stream().map(edge -> edge.id()).toList());
 
     NotionSyncResponse secondSync = notionSyncService.sync(new NotionSyncRequest(
         "notion",

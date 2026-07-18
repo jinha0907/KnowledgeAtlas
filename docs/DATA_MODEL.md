@@ -46,6 +46,10 @@
 - `supersedes_decision_id` is used when a newer accepted decision supersedes an older one.
 - Extracted candidates are always created as `proposed`. Their evidence quote must be copied from the referenced stored block.
 
+## Evidence graph invariant (Phase 9)
+- The graph is a read model only; it creates no graph table or inferred relation.
+- Every graph path is exactly `decision -> decision_evidence -> source_document/block`. Node IDs are derived from persisted primary keys and edge ordering is deterministic by evidence ID.
+
 ## Document analysis invariant (Phase 8)
 - A successful analysis contains a nonblank summary of at most 800 characters and one to eight normalized tags of at most 80 characters each.
 - Analysis is derived from the stored document snapshot, never written back to Notion, and is reviewable metadata rather than source truth.
