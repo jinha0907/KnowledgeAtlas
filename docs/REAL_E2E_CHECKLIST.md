@@ -32,8 +32,8 @@ Confirm copied content and chunks without installing local `psql`:
 
 ```bash
 docker compose -f infra/docker-compose.yml --env-file .env exec db \
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-  -c 'SELECT id, title, last_synced_at FROM source_document ORDER BY id DESC;'
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "SELECT id, title, last_synced_at FROM source_document ORDER BY id DESC;"'
 ```
 
 ## 3. Citation Search and Graph
