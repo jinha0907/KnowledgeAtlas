@@ -71,6 +71,7 @@
   - `EMBEDDING_PROVIDER=ollama` calls a local Ollama `/api/embed` endpoint without an API key.
   - `DOCUMENT_ANALYSIS_PROVIDER=ollama` and `DECISION_EXTRACTION_PROVIDER=ollama` use local `/api/chat` JSON responses.
   - Providers never silently fall back from Ollama to OpenAI; inference failure leaves source data intact and search falls back to FTS.
+  - Local analysis and extraction use a deterministic whole-block prompt prefix, disable Qwen thinking mode, require JSON Schema output, and bound context/output so a large document cannot create an unbounded local request.
 - `POST /api/embeddings/reindex`
   - requires `{ "confirm": true }`, deletes only persisted embedding rows, and regenerates them with the currently configured provider.
   - a provider/model/dimension mismatch blocks embedding backfill; hybrid search falls back to FTS until re-indexing is explicitly confirmed.

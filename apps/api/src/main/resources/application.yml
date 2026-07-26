@@ -10,6 +10,11 @@ spring:
 server:
   port: 8080
 
+ollama:
+  max-input-characters: ${OLLAMA_MAX_INPUT_CHARACTERS:8000}
+  context-window: ${OLLAMA_CONTEXT_WINDOW:16384}
+  request-timeout-seconds: ${OLLAMA_REQUEST_TIMEOUT_SECONDS:300}
+
 notion:
   base-url: ${NOTION_BASE_URL:https://api.notion.com/v1}
   token: ${NOTION_TOKEN:}

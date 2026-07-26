@@ -1,5 +1,7 @@
 package com.projectkg.api.decision.extraction;
 
+import com.projectkg.api.ai.OllamaRestClientFactory;
+import com.projectkg.api.ai.OllamaSourceBlockLimiter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -20,19 +22,31 @@ public class OllamaDecisionExtractionProvider implements DecisionExtractionProvi
       and a short rationale. Do not infer a decision without an exact supporting quote. Return an
       empty candidates array if no explicit decision exists.
       """;
+  private static final Map<String, Object> RESPONSE_SCHEMA = Map.of(
+      "type", "object",
+      "properties", Map.of("candidates", Map.of("type", "array")),
+      "required", List.of("candidates"),
+      "additionalProperties", false);
 
   private final RestClient restClient;
   private final ObjectMapper objectMapper;
   private final String model;
+  private final int maxInputCharacters;
+  private final int contextWindow;
 
   public OllamaDecisionExtractionProvider(
       ObjectMapper objectMapper,
       @Value("${decision-extraction.ollama.base-url:http://localhost:11434}") String baseUrl,
-      @Value("${decision-extraction.ollama.model:qwen3:4b}") String model
+      @Value("${decision-extraction.ollama.model:qwen3:4b}") String model,
+      @Value("${ollama.max-input-characters:8000}") int maxInputCharacters,
+      @Value("${ollama.context-window:16384}") int contextWindow,
+      @Value("${ollama.request-timeout-seconds:300}") int requestTimeoutSeconds
   ) {
     this.objectMapper = objectMapper;
     this.model = model;
-    this.restClient = RestClient.builder().baseUrl(baseUrl).build();
+    this.maxInputCharacters = maxInputCharacters;
+    this.contextWindow = contextWindow;
+    this.restClient = OllamaRestClientFactory.create(baseUrl, requestTimeoutSeconds);
   }
 
   @Override
@@ -41,7 +55,7 @@ public class OllamaDecisionExtractionProvider implements DecisionExtractionProvi
     try {
       content = objectMapper.writeValueAsString(Map.of(
           "title", documentTitle == null ? "Untitled" : documentTitle,
-          "blocks", blocks));
+          "blocks", OllamaSourceBlockLimiter.limit(blocks, maxInputCharacters)));
     } catch (Exception ex) {
       throw new IllegalStateException("Failed to build decision extraction input", ex);
     }
@@ -51,8 +65,9 @@ public class OllamaDecisionExtractionProvider implements DecisionExtractionProvi
         .body(Map.of(
             "model", model,
             "stream", false,
-            "format", "json",
-            "options", Map.of("temperature", 0),
+            "format", RESPONSE_SCHEMA,
+            "think", false,
+            "options", Map.of("temperature", 0, "num_ctx", contextWindow, "num_predict", 1024),
             "messages", List.of(
                 Map.of("role", "system", "content", SYSTEM_PROMPT),
                 Map.of("role", "user", "content", content))))
@@ -60,6 +75,9 @@ public class OllamaDecisionExtractionProvider implements DecisionExtractionProvi
         .body(String.class);
     try {
       JsonNode root = objectMapper.readTree(response == null ? "{}" : response);
+      if ("length".equals(root.path("done_reason").asText())) {
+        throw new IllegalStateException("Ollama decision extraction reached its output limit");
+      }
       JsonNode candidates = objectMapper.readTree(root.path("message").path("content").asText("{\"candidates\":[]}"))
           .path("candidates");
       List<DecisionCandidate> extracted = new ArrayList<>();
