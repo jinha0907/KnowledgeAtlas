@@ -130,6 +130,22 @@ class NotionSyncPersistenceIntegrationTest {
     assertNotEquals(originalChunkId, jdbcTemplate.queryForObject(
         "SELECT id FROM chunk WHERE block_id = 'block-a'", Long.class));
     assertEquals(0, count("embedding"));
+
+    String storedRawSnapshot = jdbcTemplate.queryForObject(
+        "SELECT raw_json::text FROM source_document WHERE id = ?", String.class, thirdSync.documentId());
+    NotionSyncResponse unchangedSync = notionSyncService.sync(new NotionSyncRequest(
+        "notion",
+        "page-1",
+        "Project plan",
+        "{\"volatile_response_metadata\":true,\"page\":{\"id\":\"page-1\"}}",
+        List.of(block("block-a", "Updated project detail"))));
+
+    assertEquals(thirdSync.documentId(), unchangedSync.documentId());
+    assertTrue(!unchangedSync.checksumChanged());
+    assertEquals(0, unchangedSync.upsertedBlocks());
+    assertEquals(0, unchangedSync.upsertedChunks());
+    assertEquals(storedRawSnapshot, jdbcTemplate.queryForObject(
+        "SELECT raw_json::text FROM source_document WHERE id = ?", String.class, thirdSync.documentId()));
   }
 
   private NotionBlockDto block(String blockId, String text) {

@@ -93,7 +93,7 @@
   - This avoids exposing the backend base URL to the browser and keeps local browser port policies from breaking the Atlas.
 
 ## Data flow (happy path)
-1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
+1) Notion 페이지/블록 변경 감지(증분 동기화) -> canonical title/block content checksum으로 무변경 snapshot skip -> 변경 시에만 페이지와 재귀 블록 raw snapshot 저장 및 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성
 3) 변경된 chunk만 active provider embedding 생성 -> pgvector upsert (기존 데이터는 수동 backfill 가능)
 4) 검색 API: query embedding + 키워드 FTS를 deterministic RRF로 결합 -> 결과 + 근거 반환

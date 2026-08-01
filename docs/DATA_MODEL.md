@@ -29,7 +29,8 @@
 
 ## Sync invariants
 - Notion source identity is `(source_type, source_id)` and must be stable across re-sync.
-- Sync uses checksum to detect unchanged snapshots and skip unnecessary block/chunk rewrites.
+- Sync checksum is calculated from source identity, normalized title, and sorted block IDs/text/paths. Stored `raw_json` and block update timestamps are diagnostic metadata, not checksum input, so volatile Notion API fields cannot cause rewrites.
+- An unchanged checksum skips all `source_document`, block, and chunk writes; `raw_json` remains the last changed source snapshot.
 - Chunk generation is deterministic for the same normalized input text.
 
 ## Retrieval indexes (Phase 3)

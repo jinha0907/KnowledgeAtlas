@@ -59,11 +59,16 @@ public class NotionSyncService implements NotionDocumentSyncService {
     List<NotionBlockDto> blocks = request.blocks() == null ? List.of() : request.blocks();
     Instant now = Instant.now();
     String normalizedRawJson = normalizeRawJson(request.rawJson(), request.sourceId(), blocks);
-    String checksumPayload = buildChecksumPayload(request, normalizedRawJson, blocks, objectMapper);
+    String checksumPayload = buildChecksumPayload(request, blocks, objectMapper);
     String checksum = sha256(checksumPayload);
 
     Optional<SourceDocumentRow> existing =
         sourceDocumentRepository.findBySource(request.sourceType(), request.sourceId());
+
+    boolean checksumChanged = existing.isEmpty() || !checksum.equals(existing.get().checksum());
+    if (!checksumChanged) {
+      return new NotionSyncResponse("ok", existing.orElseThrow().id(), 0, 0, false);
+    }
 
     long documentId = sourceDocumentRepository.upsert(
         request.sourceType(),
@@ -72,11 +77,6 @@ public class NotionSyncService implements NotionDocumentSyncService {
         now,
         normalizedRawJson,
         checksum);
-
-    boolean checksumChanged = existing.isEmpty() || !checksum.equals(existing.get().checksum());
-    if (!checksumChanged) {
-      return new NotionSyncResponse("ok", documentId, 0, 0, false);
-    }
 
     int upsertedBlocks = 0;
     int upsertedChunks = 0;
@@ -154,7 +154,6 @@ public class NotionSyncService implements NotionDocumentSyncService {
 
   static String buildChecksumPayload(
       NotionSyncRequest request,
-      String normalizedRawJson,
       List<NotionBlockDto> blocks,
       ObjectMapper objectMapper
   ) {
@@ -167,7 +166,6 @@ public class NotionSyncService implements NotionDocumentSyncService {
             blockMap.put("blockId", block.blockId().trim());
             blockMap.put("text", block.text() == null ? "" : block.text().trim());
             blockMap.put("path", block.path() == null ? "" : block.path().trim());
-            blockMap.put("updatedAt", block.updatedAt() == null ? "" : block.updatedAt().trim());
             return blockMap;
           })
           .toList();
@@ -176,7 +174,6 @@ public class NotionSyncService implements NotionDocumentSyncService {
       checksumInput.put("sourceType", request.sourceType());
       checksumInput.put("sourceId", request.sourceId());
       checksumInput.put("title", request.title() == null ? "" : request.title().trim());
-      checksumInput.put("rawJson", normalizedRawJson);
       checksumInput.put("blocks", normalizedBlocks);
       return objectMapper.writeValueAsString(checksumInput);
     } catch (Exception ex) {
