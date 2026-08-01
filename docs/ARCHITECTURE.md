@@ -88,6 +88,9 @@
   - shows the selected decision's persisted status beside its evidence.
   - offers only valid lifecycle transitions: evidence-backed `proposed -> accepted` and `accepted -> obsolete`.
   - optionally links an obsolete decision to another accepted decision through the existing `supersedesDecisionId` field.
+- Web-to-API development boundary
+  - Atlas calls same-origin `/api/*`; Next.js rewrites requests server-side to `API_BASE_URL` (default `http://localhost:8080`).
+  - This avoids exposing the backend base URL to the browser and keeps local browser port policies from breaking the Atlas.
 
 ## Data flow (happy path)
 1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
