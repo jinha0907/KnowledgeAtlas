@@ -83,6 +83,12 @@
 - Atlas retrieval readiness
   - shows provider state before semantic retrieval and requires an explicit checkbox before it calls the destructive re-index API.
 
+## Implemented API surface (Phase 13)
+- Atlas decision review
+  - shows the selected decision's persisted status beside its evidence.
+  - offers only valid lifecycle transitions: evidence-backed `proposed -> accepted` and `accepted -> obsolete`.
+  - optionally links an obsolete decision to another accepted decision through the existing `supersedesDecisionId` field.
+
 ## Data flow (happy path)
 1) Notion 페이지/블록 변경 감지(증분 동기화) -> 페이지와 재귀 블록 raw snapshot 저장 -> 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성

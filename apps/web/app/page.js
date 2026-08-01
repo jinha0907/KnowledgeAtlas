@@ -36,6 +36,8 @@ export default function Home() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [embeddingStatus, setEmbeddingStatus] = useState(null);
   const [reindexConfirmed, setReindexConfirmed] = useState(false);
+  const [supersedingDecisionId, setSupersedingDecisionId] = useState("");
+  const [statusUpdating, setStatusUpdating] = useState(false);
   const [notice, setNotice] = useState("Connecting to your local knowledge base...");
   const [loading, setLoading] = useState(true);
 
@@ -80,6 +82,10 @@ export default function Home() {
       .then(setDocumentDetail)
       .catch((error) => setNotice(`Could not load source blocks: ${error.message}`));
   }, [selectedDocument]);
+
+  useEffect(() => {
+    setSupersedingDecisionId("");
+  }, [selectedDecision?.id]);
 
   const graphLayout = useMemo(() => {
     const decisionNodes = graph.nodes.filter((node) => (
@@ -156,6 +162,38 @@ export default function Home() {
     runAction("Embedding re-index", "/api/embeddings/reindex", {
       body: JSON.stringify({ confirm: true }),
     });
+  };
+
+  const updateSelectedDecisionStatus = async (status) => {
+    if (!selectedDecision) {
+      return;
+    }
+    if (status === "accepted" && !selectedDecision.evidence?.length) {
+      setNotice("Attach and review source evidence before accepting this decision.");
+      return;
+    }
+
+    setStatusUpdating(true);
+    setNotice(`Updating decision to ${status}...`);
+    try {
+      const updated = await request(`/api/decisions/${selectedDecision.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status,
+          supersedesDecisionId: status === "obsolete" && supersedingDecisionId
+            ? Number(supersedingDecisionId)
+            : null,
+        }),
+      });
+      setSupersedingDecisionId("");
+      setSelectedDecision(updated);
+      setNotice(`Decision marked ${status}.`);
+      await loadAtlas();
+    } catch (error) {
+      setNotice(`Decision status update failed: ${error.message}`);
+    } finally {
+      setStatusUpdating(false);
+    }
   };
 
   const openEvidenceSource = (documentId, blockId = null) => {
@@ -429,6 +467,21 @@ export default function Home() {
           </div>
           {selectedDecision ? (
             <div className="evidence-content">
+              <section className="decision-review" aria-label="Decision review controls">
+                <div>
+                  <p className="eyebrow">Review status</p>
+                  <strong className={`decision-status ${selectedDecision.status}`}>{statusLabels[selectedDecision.status]}</strong>
+                </div>
+                {selectedDecision.status === "proposed" && (
+                  <button
+                    className="accept-button"
+                    disabled={statusUpdating || !selectedDecision.evidence?.length}
+                    onClick={() => updateSelectedDecisionStatus("accepted")}
+                  >
+                    {statusUpdating ? "Updating" : "Accept decision"}
+                  </button>
+                )}
+              </section>
               {selectedDecision.discussion && <p className="discussion">{selectedDecision.discussion}</p>}
               <p className="outcome">{selectedDecision.outcome}</p>
               {selectedDecision.confidence !== null && selectedDecision.confidence !== undefined && (
@@ -447,6 +500,33 @@ export default function Home() {
                 ))}
                 {!selectedDecision.evidence?.length && <p className="empty-state">No evidence has been attached.</p>}
               </div>
+              {selectedDecision.status === "proposed" && !selectedDecision.evidence?.length && (
+                <p className="review-hint">Acceptance is unavailable until this candidate has source evidence.</p>
+              )}
+              {selectedDecision.status === "accepted" && (
+                <section className="obsolete-action" aria-label="Obsolete decision">
+                  <label htmlFor="superseding-decision">Superseded by (optional)</label>
+                  <select
+                    id="superseding-decision"
+                    value={supersedingDecisionId}
+                    onChange={(event) => setSupersedingDecisionId(event.target.value)}
+                  >
+                    <option value="">No replacement decision</option>
+                    {decisions.filter((decision) => (
+                      decision.status === "accepted" && decision.id !== selectedDecision.id
+                    )).map((decision) => (
+                      <option key={decision.id} value={decision.id}>{decision.title}</option>
+                    ))}
+                  </select>
+                  <button
+                    className="obsolete-button"
+                    disabled={statusUpdating}
+                    onClick={() => updateSelectedDecisionStatus("obsolete")}
+                  >
+                    {statusUpdating ? "Updating" : "Mark obsolete"}
+                  </button>
+                </section>
+              )}
             </div>
           ) : <p className="empty-state">Choose a node to inspect its supporting text.</p>}
         </aside>
