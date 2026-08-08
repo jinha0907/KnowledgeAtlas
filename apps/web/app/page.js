@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const apiBaseUrl = "";
 
@@ -22,10 +22,186 @@ async function request(path, options = {}) {
   return body;
 }
 
+function KnowledgeGraphCanvas({ graph, onOpenSource, onSelectEdge }) {
+  const svgRef = useRef(null);
+  const interactionRef = useRef(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [positions, setPositions] = useState({});
+  const width = 900;
+  const height = 560;
+
+  const layout = useMemo(() => {
+    const degrees = new Map(graph.nodes.map((node) => [node.documentId, 0]));
+    graph.edges.forEach((edge) => {
+      degrees.set(edge.sourceDocumentId, (degrees.get(edge.sourceDocumentId) || 0) + 1);
+      degrees.set(edge.targetDocumentId, (degrees.get(edge.targetDocumentId) || 0) + 1);
+    });
+    const center = { x: width / 2, y: height / 2 };
+    const radius = Math.max(150, Math.min(225, 90 + graph.nodes.length * 18));
+    const initialPositions = {};
+    graph.nodes.forEach((node, index) => {
+      const angle = (Math.PI * 2 * index) / Math.max(graph.nodes.length, 1) - Math.PI / 2;
+      const ringOffset = (index % 2) * 34;
+      initialPositions[node.documentId] = {
+        x: center.x + Math.cos(angle) * (radius + ringOffset),
+        y: center.y + Math.sin(angle) * (radius + ringOffset),
+      };
+    });
+    return { degrees, initialPositions };
+  }, [graph]);
+
+  useEffect(() => {
+    setPositions(layout.initialPositions);
+    setPan({ x: 0, y: 0 });
+    setZoom(1);
+  }, [layout]);
+
+  const clientPoint = (event) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * width,
+      y: ((event.clientY - rect.top) / rect.height) * height,
+    };
+  };
+
+  const pointerDown = (event, documentId = null) => {
+    const point = clientPoint(event);
+    interactionRef.current = documentId === null
+      ? { type: "pan", point, pan }
+      : { type: "node", documentId, point, position: positions[documentId] };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const pointerMove = (event) => {
+    const interaction = interactionRef.current;
+    if (!interaction) return;
+    const point = clientPoint(event);
+    if (interaction.type === "pan") {
+      setPan({
+        x: interaction.pan.x + (point.x - interaction.point.x),
+        y: interaction.pan.y + (point.y - interaction.point.y),
+      });
+      return;
+    }
+    setPositions((current) => ({
+      ...current,
+      [interaction.documentId]: {
+        x: interaction.position.x + (point.x - interaction.point.x) / zoom,
+        y: interaction.position.y + (point.y - interaction.point.y) / zoom,
+      },
+    }));
+  };
+
+  const pointerUp = () => {
+    interactionRef.current = null;
+  };
+
+  const zoomGraph = (event) => {
+    event.preventDefault();
+    setZoom((current) => Math.max(0.55, Math.min(1.8, current + (event.deltaY < 0 ? 0.1 : -0.1))));
+  };
+
+  if (!graph.nodes.length) {
+    return <p className="empty-state">No linked documents yet. Backfill embeddings, then rebuild the map.</p>;
+  }
+
+  return (
+    <div className="knowledge-graph-wrap">
+      <div className="graph-tools">
+        <span>Drag nodes. Drag empty space to pan. Scroll to zoom.</span>
+        <div>
+          <button className="graph-tool" onClick={() => setZoom((value) => Math.min(1.8, value + 0.15))}>+</button>
+          <button className="graph-tool" onClick={() => setZoom((value) => Math.max(0.55, value - 0.15))}>-</button>
+          <button className="graph-tool" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>Reset</button>
+        </div>
+      </div>
+      <svg
+        ref={svgRef}
+        className="knowledge-graph-canvas"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="Interactive document similarity graph"
+        onPointerDown={(event) => pointerDown(event)}
+        onPointerMove={pointerMove}
+        onPointerUp={pointerUp}
+        onPointerCancel={pointerUp}
+        onWheel={zoomGraph}
+      >
+        <defs>
+          <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+        <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+          {graph.edges.map((edge) => {
+            const source = positions[edge.sourceDocumentId];
+            const target = positions[edge.targetDocumentId];
+            if (!source || !target) return null;
+            return (
+              <line
+                key={edge.id}
+                className="knowledge-edge"
+                x1={source.x}
+                y1={source.y}
+                x2={target.x}
+                y2={target.y}
+                strokeWidth={1.3 + edge.score * 3.2}
+                role="button"
+                tabIndex={0}
+                aria-label={`Inspect ${Math.round(edge.score * 100)} percent similarity evidence`}
+                onClick={(event) => { event.stopPropagation(); onSelectEdge(edge); }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.stopPropagation();
+                    onSelectEdge(edge);
+                  }
+                }}
+              />
+            );
+          })}
+          {graph.nodes.map((node) => {
+            const position = positions[node.documentId];
+            if (!position) return null;
+            const degree = layout.degrees.get(node.documentId) || 0;
+            const radius = 19 + Math.min(13, degree * 3);
+            return (
+              <g
+                key={node.id}
+                className="knowledge-node"
+                transform={`translate(${position.x} ${position.y})`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${node.label}`}
+                onPointerDown={(event) => { event.stopPropagation(); pointerDown(event, node.documentId); }}
+                onClick={(event) => { event.stopPropagation(); onOpenSource(node.documentId); }}
+                onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onOpenSource(node.documentId); }}
+              >
+                <circle r={radius + 9} className="knowledge-node-halo" />
+                <circle r={radius} className="knowledge-node-core" filter="url(#nodeGlow)" />
+                <text y={4} textAnchor="middle">{degree || ""}</text>
+                <text className="knowledge-node-label" x="0" y={radius + 18} textAnchor="middle">
+                  {node.label.length > 22 ? `${node.label.slice(0, 21)}...` : node.label}
+                </text>
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 export default function Home() {
   const [documents, setDocuments] = useState([]);
   const [decisions, setDecisions] = useState([]);
   const [graph, setGraph] = useState({ nodes: [], edges: [] });
+  const [knowledgeGraph, setKnowledgeGraph] = useState({ status: "ready", nodes: [], edges: [] });
+  const [graphMode, setGraphMode] = useState("knowledge");
+  const [minimumSimilarity, setMinimumSimilarity] = useState(0.35);
+  const [selectedSimilarityEdge, setSelectedSimilarityEdge] = useState(null);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [documentDetail, setDocumentDetail] = useState(null);
   const [selectedDecision, setSelectedDecision] = useState(null);
@@ -40,20 +216,23 @@ export default function Home() {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [notice, setNotice] = useState("Connecting to your local knowledge base...");
   const [loading, setLoading] = useState(true);
+  const [activeAction, setActiveAction] = useState(null);
 
-  const loadAtlas = async () => {
+  const loadAtlas = useCallback(async () => {
     setLoading(true);
     try {
-      const [documentRows, decisionRows, graphData, embeddingData] = await Promise.all([
+      const [documentRows, decisionRows, graphData, embeddingData, knowledgeGraphData] = await Promise.all([
         request("/api/documents"),
         request("/api/decisions"),
         request("/api/project-graph"),
         request("/api/embeddings/status"),
+        request(`/api/knowledge-graph?minimumScore=${minimumSimilarity}`),
       ]);
       setDocuments(documentRows);
       setDecisions(decisionRows);
       setGraph(graphData);
       setEmbeddingStatus(embeddingData);
+      setKnowledgeGraph(knowledgeGraphData);
       setSelectedDocument((current) => (
         documentRows.find((document) => document.id === current?.id) || documentRows[0] || null
       ));
@@ -66,11 +245,11 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [minimumSimilarity]);
 
   useEffect(() => {
     loadAtlas();
-  }, []);
+  }, [loadAtlas]);
 
   useEffect(() => {
     if (!selectedDocument) {
@@ -124,6 +303,7 @@ export default function Home() {
   }, [filter, graph]);
 
   const runAction = async (label, path, options = {}) => {
+    setActiveAction(label);
     setNotice(`${label} is running...`);
     try {
       const result = await request(path, { method: "POST", ...options });
@@ -135,6 +315,36 @@ export default function Home() {
       await loadAtlas();
     } catch (error) {
       setNotice(`${label} failed: ${error.message}`);
+    } finally {
+      setActiveAction(null);
+    }
+  };
+
+  const rebuildKnowledgeGraph = async () => {
+    const label = "Knowledge graph rebuild";
+    setActiveAction(label);
+    setNotice(`${label} is comparing stored document embeddings...`);
+    try {
+      const result = await request("/api/knowledge-graph/rebuild", { method: "POST" });
+      await loadAtlas();
+      setNotice(result.status === "disabled"
+        ? "Knowledge graph is disabled. Configure a local embedding provider first."
+        : `Knowledge graph rebuilt: ${result.edges} retained links across ${result.documents} documents.`);
+    } catch (error) {
+      setNotice(`${label} failed: ${error.message}`);
+    } finally {
+      setActiveAction(null);
+    }
+  };
+
+  const changeSimilarity = async (value) => {
+    setMinimumSimilarity(value);
+    try {
+      const data = await request(`/api/knowledge-graph?minimumScore=${value}`);
+      setKnowledgeGraph(data);
+      setSelectedSimilarityEdge(null);
+    } catch (error) {
+      setNotice(`Could not filter the knowledge graph: ${error.message}`);
     }
   };
 
@@ -415,57 +625,127 @@ export default function Home() {
 
         <section className="decision-stage panel">
           <div className="section-heading decision-heading">
-            <div><p className="eyebrow">Review map</p><h3>Decision field</h3></div>
-            <div className="filter-row" role="group" aria-label="Filter decisions">
-              {["proposed", "accepted", "obsolete", "all"].map((status) => (
-                <button
-                  key={status}
-                  className={filter === status ? "filter active" : "filter"}
-                  onClick={() => setFilter(status)}
-                >{status === "all" ? "All" : statusLabels[status]}</button>
-              ))}
+            <div>
+              <p className="eyebrow">{graphMode === "knowledge" ? "Semantic atlas" : "Review map"}</p>
+              <h3>{graphMode === "knowledge" ? "Document constellation" : "Decision field"}</h3>
             </div>
-          </div>
-          <div className="decision-map">
-            <div className="graph-legend" aria-hidden="true">
-              <span className="document">Document</span><span className="decision">Decision</span><span className="evidence">Evidence block</span>
-            </div>
-            {graphLayout.nodes.length === 0 && <p className="empty-state">No evidence-backed decisions in this view yet.</p>}
-            {graphLayout.nodes.length > 0 && (
-              <div className="graph-canvas" style={{ minHeight: `${graphLayout.height}px` }}>
-                <svg viewBox={`0 0 100 ${graphLayout.height}`} preserveAspectRatio="none" aria-hidden="true">
-                  {graphLayout.edges.map((edge) => {
-                    const source = graphLayout.positions.get(edge.sourceId);
-                    const target = graphLayout.positions.get(edge.targetId);
-                    return source && target && <line key={edge.id} x1={source.x} y1={source.y} x2={target.x} y2={target.y} />;
-                  })}
-                </svg>
-                {graphLayout.nodes.map((node) => {
-                  const position = graphLayout.positions.get(node.id);
-                  const selected = node.type === "decision" && selectedDecision?.id === node.decisionId;
-                  return position && (
-                    <button
-                      key={node.id}
-                      className={`graph-node ${node.type} ${selected ? "selected" : ""}`}
-                      style={{ left: `${position.x}%`, top: `${position.y}px` }}
-                      onClick={() => selectGraphNode(node)}
-                      aria-label={`${node.type}: ${node.label}`}
-                    >
-                      <span>{node.type === "evidence" ? node.blockId : node.type}</span>
-                      <strong>{node.label}</strong>
-                    </button>
-                  );
-                })}
+            <div className="graph-mode-controls">
+              <div className="filter-row" role="group" aria-label="Choose graph view">
+                {["knowledge", "decisions"].map((mode) => (
+                  <button
+                    key={mode}
+                    className={graphMode === mode ? "filter active" : "filter"}
+                    onClick={() => { setGraphMode(mode); setSelectedSimilarityEdge(null); }}
+                  >{mode === "knowledge" ? "Knowledge graph" : "Decision map"}</button>
+                ))}
               </div>
-            )}
+              {graphMode === "decisions" && <div className="filter-row" role="group" aria-label="Filter decisions">
+                {["proposed", "accepted", "obsolete", "all"].map((status) => (
+                  <button
+                    key={status}
+                    className={filter === status ? "filter active" : "filter"}
+                    onClick={() => setFilter(status)}
+                  >{status === "all" ? "All" : statusLabels[status]}</button>
+                ))}
+              </div>}
+            </div>
           </div>
+          {graphMode === "knowledge" ? (
+            <div className="semantic-map">
+              <div className="semantic-map-bar">
+                <div>
+                  <strong>{knowledgeGraph.edges.length} retained links</strong>
+                  <span>{knowledgeGraph.embeddingIdentity ? `${knowledgeGraph.embeddingIdentity.provider}/${knowledgeGraph.embeddingIdentity.model}` : "No embedding provider"}</span>
+                </div>
+                <label className="similarity-control">
+                  <span>Similarity {minimumSimilarity.toFixed(2)}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="0.95"
+                    step="0.05"
+                    value={minimumSimilarity}
+                    onChange={(event) => changeSimilarity(Number(event.target.value))}
+                    disabled={knowledgeGraph.status === "disabled"}
+                  />
+                </label>
+                <button
+                  className="outline-button"
+                  onClick={rebuildKnowledgeGraph}
+                  disabled={activeAction !== null || knowledgeGraph.status === "disabled"}
+                >{activeAction === "Knowledge graph rebuild" ? "Building..." : "Rebuild links"}</button>
+              </div>
+              {knowledgeGraph.status === "disabled" && <p className="empty-state">Enable local embeddings, backfill the stored blocks, then rebuild this graph.</p>}
+              {knowledgeGraph.status === "rebuild_required" && <p className="graph-warning">The current embedding model changed. Rebuild links before trusting this map.</p>}
+              {knowledgeGraph.status !== "disabled" && (
+                <KnowledgeGraphCanvas
+                  graph={knowledgeGraph}
+                  onOpenSource={(documentId) => openEvidenceSource(documentId)}
+                  onSelectEdge={(edge) => { setSelectedSimilarityEdge(edge); setGraphMode("knowledge"); }}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="decision-map">
+              <div className="graph-legend" aria-hidden="true">
+                <span className="document">Document</span><span className="decision">Decision</span><span className="evidence">Evidence block</span>
+              </div>
+              {graphLayout.nodes.length === 0 && <p className="empty-state">No evidence-backed decisions in this view yet.</p>}
+              {graphLayout.nodes.length > 0 && (
+                <div className="graph-canvas" style={{ minHeight: `${graphLayout.height}px` }}>
+                  <svg viewBox={`0 0 100 ${graphLayout.height}`} preserveAspectRatio="none" aria-hidden="true">
+                    {graphLayout.edges.map((edge) => {
+                      const source = graphLayout.positions.get(edge.sourceId);
+                      const target = graphLayout.positions.get(edge.targetId);
+                      return source && target && <line key={edge.id} x1={source.x} y1={source.y} x2={target.x} y2={target.y} />;
+                    })}
+                  </svg>
+                  {graphLayout.nodes.map((node) => {
+                    const position = graphLayout.positions.get(node.id);
+                    const selected = node.type === "decision" && selectedDecision?.id === node.decisionId;
+                    return position && (
+                      <button
+                        key={node.id}
+                        className={`graph-node ${node.type} ${selected ? "selected" : ""}`}
+                        style={{ left: `${position.x}%`, top: `${position.y}px` }}
+                        onClick={() => selectGraphNode(node)}
+                        aria-label={`${node.type}: ${node.label}`}
+                      >
+                        <span>{node.type === "evidence" ? node.blockId : node.type}</span>
+                        <strong>{node.label}</strong>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         <aside className="evidence-panel panel">
           <div className="section-heading">
-            <div><p className="eyebrow">Evidence drawer</p><h3>{selectedDecision?.title || "Select a decision"}</h3></div>
+            <div><p className="eyebrow">Evidence drawer</p><h3>{graphMode === "knowledge" ? "Similarity evidence" : (selectedDecision?.title || "Select a decision")}</h3></div>
           </div>
-          {selectedDecision ? (
+          {graphMode === "knowledge" && selectedSimilarityEdge ? (
+            <div className="evidence-content similarity-evidence">
+              <p className="similarity-score">Semantic similarity <strong>{Math.round(selectedSimilarityEdge.score * 100)}%</strong></p>
+              <p>These two stored chunks are the representative evidence for this document link.</p>
+              {[selectedSimilarityEdge.sourceCitation, selectedSimilarityEdge.targetCitation].map((citation, index) => {
+                const documentId = index === 0
+                  ? selectedSimilarityEdge.sourceDocumentId
+                  : selectedSimilarityEdge.targetDocumentId;
+                return (
+                  <article key={citation.chunkId} className="evidence-card">
+                    <span>BLOCK {citation.blockId}</span>
+                    <blockquote>“{citation.text}”</blockquote>
+                    <button className="evidence-link" onClick={() => openEvidenceSource(documentId, citation.blockId)}>
+                      Open source document
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          ) : graphMode === "knowledge" ? <p className="empty-state">Select a connection to inspect the actual chunks that formed it.</p> : selectedDecision ? (
             <div className="evidence-content">
               <section className="decision-review" aria-label="Decision review controls">
                 <div>

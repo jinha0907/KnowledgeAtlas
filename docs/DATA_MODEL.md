@@ -26,6 +26,9 @@
 - `sync_job_run` (optional operational table)
   - `id`, `source_type`, `started_at`, `finished_at`, `status(running/success/failed)`, `synced_documents`, `source_watermark_at`, `error_message`
   - at most one `running` row per `source_type` (partial unique index)
+- `document_similarity`
+  - canonical derived pair: `document_id_low < document_id_high`, similarity `score`, representative `chunk_id_low/high`, active embedding identity, source checksums, and `created_at`
+  - foreign keys cascade when a source document or representative chunk is replaced; this derived table never changes source content or decisions
 
 ## Sync invariants
 - Notion source identity is `(source_type, source_id)` and must be stable across re-sync.
@@ -51,6 +54,11 @@
 ## Evidence graph invariant (Phase 9)
 - The graph is a read model only; it creates no graph table or inferred relation.
 - Every graph path is exactly `decision -> decision_evidence -> source_document/block`. Node IDs are derived from persisted primary keys and edge ordering is deterministic by evidence ID.
+
+## Semantic graph invariant (Phase 14)
+- `document_similarity` is a rebuildable read model, distinct from the evidence-only decision graph. It never creates a decision, decision evidence, or source link.
+- Rebuild considers chunks only when `(provider, model, dimensions)` equals the configured active embedding identity. It calculates candidate scores from document embedding centroids, keeps only top neighbours over the configured threshold, then stores a bounded representative chunk pair for inspection.
+- A graph read filters rows by the active identity and both current source checksums. Re-indexing or source changes therefore require an explicit rebuild before old similarity is shown again.
 
 ## Document analysis invariant (Phase 8)
 - A successful analysis contains a nonblank summary of at most 800 characters and one to eight normalized tags of at most 80 characters each.

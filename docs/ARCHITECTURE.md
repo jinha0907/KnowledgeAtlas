@@ -92,6 +92,18 @@
   - Atlas calls same-origin `/api/*`; Next.js rewrites requests server-side to `API_BASE_URL` (default `http://localhost:8080`).
   - This avoids exposing the backend base URL to the browser and keeps local browser port policies from breaking the Atlas.
 
+## Implemented API surface (Phase 14)
+- `POST /api/knowledge-graph/rebuild`
+  - explicitly rebuilds the derived document similarity graph from chunks with the active embedding identity.
+  - removes and replaces only `document_similarity`; source documents, chunks, embeddings, and decisions are unchanged.
+  - retains sparse top-neighbour edges above the configured rebuild score and returns document/edge counts.
+- `GET /api/knowledge-graph?minimumScore=0.35`
+  - returns stored document nodes and current-identity similarity edges with two representative chunk citations.
+  - suppresses stale rows when a source checksum or embedding identity changed; callers receive `rebuild_required` if rows no longer match.
+- Atlas semantic graph
+  - defaults to an SVG document constellation with pan, zoom, node drag, score filtering, document opening, and edge-evidence inspection.
+  - retains the existing decision graph as a separate review mode because semantic relatedness is not decision evidence.
+
 ## Data flow (happy path)
 1) Notion 페이지/블록 변경 감지(증분 동기화) -> canonical title/block content checksum으로 무변경 snapshot skip -> 변경 시에만 페이지와 재귀 블록 raw snapshot 저장 및 삭제된 블록 정리
 2) 블록 텍스트 정규화 -> chunk 생성
@@ -102,6 +114,7 @@
 7) Document analysis: 저장 block -> optional provider -> checksum-idempotent summary/tags -> Atlas에서 검토
 8) Project graph: documents + decisions + decision evidence -> deterministic node/edge API -> Atlas graph에서 근거 추적
 9) Knowledge search: user query -> retrieval API -> cited block results -> Atlas source inspector
+10) Knowledge graph: explicit rebuild -> document-centroid candidate links -> sparse persisted similarity edges + representative chunks -> Atlas graph/evidence drawer
 
 ## Local model operating rule
 - The active embedding identity is `(provider, model, dimensions)`. A corpus has exactly one active identity at a time.

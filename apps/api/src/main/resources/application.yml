@@ -55,3 +55,6 @@ document-analysis:
 app:
   cors:
     allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:3000}
+
+knowledge-graph:
+  rebuild-minimum-score: ${KNOWLEDGE_GRAPH_REBUILD_MINIMUM_SCORE:0.35}

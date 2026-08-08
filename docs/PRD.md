@@ -14,7 +14,7 @@ Project Knowledge Graph + Decision Tracker
 - Notion sync pipeline (incremental).
 - Retrieval API with citations.
 - Optional document summary/tag analysis with explicit external-provider opt-in.
-- Basic web visualization (project/decision map).
+- Basic web visualization (semantic document map and evidence-only decision map).
 
 ## Success criteria
 - Sync from at least one Notion test workspace.
@@ -22,3 +22,4 @@ Project Knowledge Graph + Decision Tracker
 - Decision records are queryable with supporting evidence.
 - Automated decision candidates remain reviewable proposals; they are never accepted automatically.
 - Document summaries and tags are available for the current synced snapshot and remain reviewable metadata.
+- Semantic document links expose their similarity score and the two stored chunks used as representative evidence; they do not imply a decision or causality.
